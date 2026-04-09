@@ -1,0 +1,16 @@
+../Core/Src/matrix_driver.c:30:6:Matrix_Init	4
+../Core/Src/matrix_driver.c:52:6:Matrix_Scan	1
+../Core/Src/matrix_driver.c:59:6:Matrix_DebounceTask	6
+../Core/Src/matrix_driver.c:77:6:Matrix_GetEvent	3
+../Core/Src/matrix_driver.c:93:6:Matrix_HasEvent	1
+../Core/Src/matrix_driver.c:98:22:Matrix_GetState	1
+../Core/Src/matrix_driver.c:103:12:Matrix_GetKeyState	3
+../Core/Src/matrix_driver.c:112:9:Matrix_ToKeyIndex	1
+../Core/Src/matrix_driver.c:117:6:Matrix_Reset	1
+../Core/Src/matrix_driver.c:130:23:_Read_Columns	3
+../Core/Src/matrix_driver.c:145:13:_Matrix_ScanRaw	2
+../Core/Src/matrix_driver.c:163:13:_Matrix_ApplyDebounce	6
+../Core/Src/matrix_driver.c:193:13:_Matrix_GenerateEvents	1
+../Core/Src/matrix_driver.c:206:13:_Queue_Push	2
+../Core/Src/matrix_driver.c:221:20:_Row_DriveHigh	1
+../Core/Src/matrix_driver.c:226:20:_Row_DriveLow	1

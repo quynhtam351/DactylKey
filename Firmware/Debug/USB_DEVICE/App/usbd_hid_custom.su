@@ -1,0 +1,13 @@
+../USB_DEVICE/App/usbd_hid_custom.c:219:16:USBD_HID_Init	16	static
+../USB_DEVICE/App/usbd_hid_custom.c:251:16:USBD_HID_DeInit	16	static
+../USB_DEVICE/App/usbd_hid_custom.c:268:16:USBD_HID_Setup	40	static
+../USB_DEVICE/App/usbd_hid_custom.c:385:16:USBD_HID_DataIn	24	static
+../USB_DEVICE/App/usbd_hid_custom.c:404:16:USBD_HID_DataOut	24	static
+../USB_DEVICE/App/usbd_hid_custom.c:420:17:USBD_HID_GetCfgDesc	16	static
+../USB_DEVICE/App/usbd_hid_custom.c:439:17:USBD_HID_GetDeviceQualifierDesc	16	static
+../USB_DEVICE/App/usbd_hid_custom.c:449:20:USBD_HID_SendKeyboardReport	24	static
+../USB_DEVICE/App/usbd_hid_custom.c:466:20:USBD_HID_SendNKROReport	24	static
+../USB_DEVICE/App/usbd_hid_custom.c:483:20:USBD_HID_SendRawReport	24	static
+../USB_DEVICE/App/usbd_hid_custom.c:499:6:USBD_HID_RawDataAvailable	4	static
+../USB_DEVICE/App/usbd_hid_custom.c:504:6:USBD_HID_GetRawData	24	static
+../USB_DEVICE/App/usbd_hid_custom.c:514:6:USBD_HID_KeyboardReady	24	static

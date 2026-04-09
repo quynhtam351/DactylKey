@@ -1,0 +1,2291 @@
+============================================================
+DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
+============================================================
+
+📁 Project: `Core`
+📂 Thư mục: Src, Inc
+📄 Số file: 23
+
+## Cấu trúc
+```
+  Src\dma.c (1.7KB)
+  Src\gpio.c (3.3KB)
+  Src\main.c (6.6KB)
+  Src\matrix_driver.c (9.7KB)
+  Src\stm32f4xx_hal_msp.c (2.2KB)
+  Src\stm32f4xx_hal_timebase_tim.c (4.4KB)
+  Src\stm32f4xx_it.c (7.3KB)
+  Src\syscalls.c (2.8KB)
+  Src\sysmem.c (2.7KB)
+  Src\system_stm32f4xx.c (26.1KB)
+  Src\tim.c (2.9KB)
+  Src\usart.c (4.8KB)
+  Src\usb_otg.c (3.4KB)
+  Inc\dma.h (1.4KB)
+  Inc\gpio.h (1.3KB)
+  Inc\keyboard_config.h (5.1KB)
+  Inc\main.h (3.0KB)
+  Inc\matrix_driver.h (4.4KB)
+  Inc\stm32f4xx_hal_conf.h (19.6KB)
+  Inc\stm32f4xx_it.h (2.1KB)
+  Inc\tim.h (1.3KB)
+  Inc\usart.h (1.3KB)
+  Inc\usb_otg.h (1.4KB)
+```
+
+## Source Code
+
+### `Src\dma.c`
+```c
+#include "dma.h"
+
+void MX_DMA_Init(void)
+{
+
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
+
+  HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
+
+}
+```
+
+### `Src\gpio.c`
+```c
+#include "gpio.h"
+
+void MX_GPIO_Init(void)
+{
+
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  HAL_GPIO_WritePin(LED_STATUS_GPIO_Port, LED_STATUS_Pin, GPIO_PIN_SET);
+
+  HAL_GPIO_WritePin(GPIOA, ROW0_Pin|ROW1_Pin|ROW2_Pin|ROW3_Pin
+                          |ROW4_Pin|ROW5_Pin|ROW6_Pin|ROW7_Pin, GPIO_PIN_SET);
+
+  HAL_GPIO_WritePin(GPIOB, LED_LAYER1_Pin|LED_LAYER2_Pin, GPIO_PIN_SET);
+
+  GPIO_InitStruct.Pin = LED_STATUS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED_STATUS_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = ROW0_Pin|ROW1_Pin|ROW2_Pin|ROW3_Pin
+                          |ROW4_Pin|ROW5_Pin|ROW6_Pin|ROW7_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = COL0_Pin|COL1_Pin|COL2_Pin|COL3_Pin
+                          |COL4_Pin|COL5_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = LED_LAYER1_Pin|LED_LAYER2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+}
+```
+
+### `Src\main.c`
+```c
+#include "main.h"
+#include "dma.h"
+#include "tim.h"
+#include "usart.h"
+#include "usb_otg.h"
+#include "gpio.h"
+
+#include "keyboard_config.h"
+#include "matrix_driver.h"
+
+void SystemClock_Config(void);
+
+int main(void)
+{
+
+  HAL_Init();
+
+  SystemClock_Config();
+
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_TIM2_Init();
+  MX_USB_OTG_FS_PCD_Init();
+  MX_USART1_UART_Init();
+
+  Matrix_Init();
+
+  HAL_TIM_Base_Start_IT(&htim2);
+
+  while (1)
+  {
+
+    KeyEvent_t event;
+    while (Matrix_GetEvent(&event))
+    {
+
+      HAL_GPIO_TogglePin(LED_STATUS_GPIO_PORT, LED_STATUS_GPIO_PIN);
+    }
+  }
+
+}
+
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
+
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLN = 336;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLQ = 7;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+
+  if (htim->Instance == TIM5)
+  {
+    HAL_IncTick();
+  }
+
+  if (htim->Instance == TIM2)
+  {
+    Matrix_DebounceTask();
+    Matrix_Scan();
+  }
+}
+
+void Error_Handler(void)
+{
+
+  __disable_irq();
+  while (1)
+  {
+  }
+
+}
+#ifdef USE_FULL_ASSERT
+
+void assert_failed(uint8_t *file, uint32_t line)
+{
+
+}
+#endif
+```
+
+### `Src\matrix_driver.c`
+```c
+#include "matrix_driver.h"
+#include <string.h>
+
+static MatrixState_t s_matrix_state;
+
+static KeyEventQueue_t s_event_queue;
+
+static const uint16_t s_row_pins[MATRIX_ROWS] = ROW_PINS;
+
+static void     _Matrix_ScanRaw(void);
+static void     _Matrix_ApplyDebounce(void);
+static void     _Matrix_GenerateEvents(uint8_t row, uint8_t col,
+                                        bool new_state);
+static bool     _Queue_Push(const KeyEvent_t *event);
+static void     _Row_DriveHigh(uint8_t row);
+static void     _Row_DriveLow(uint8_t row);
+static uint8_t  _Col_ReadAll(void);
+
+void Matrix_Init(void)
+{
+
+    memset(&s_matrix_state, 0, sizeof(MatrixState_t));
+    memset(&s_event_queue, 0, sizeof(KeyEventQueue_t));
+
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            s_matrix_state.debounce[row][col].status       = DEBOUNCE_STABLE;
+            s_matrix_state.debounce[row][col].timer        = 0;
+
+            s_matrix_state.debounce[row][col].stable_state = false;
+        }
+
+        s_matrix_state.raw[row]       = 0x00;
+        s_matrix_state.debounced[row] = 0x00;
+    }
+
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        _Row_DriveHigh(row);
+    }
+}
+
+void Matrix_Scan(void)
+{
+
+    _Matrix_ScanRaw();
+
+    _Matrix_ApplyDebounce();
+
+    s_matrix_state.scan_count++;
+}
+
+void Matrix_DebounceTask(void)
+{
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            DebounceState_t *db = &s_matrix_state.debounce[row][col];
+
+            if (db->status == DEBOUNCE_DEBOUNCING) {
+                if (db->timer > 0) {
+                    db->timer--;
+                }
+
+                if (db->timer == 0) {
+                    db->status = DEBOUNCE_STABLE;
+                }
+            }
+        }
+    }
+}
+
+bool Matrix_GetEvent(KeyEvent_t *event)
+{
+    if (event == NULL) return false;
+    if (s_event_queue.count == 0) return false;
+
+    __disable_irq();
+
+    *event = s_event_queue.buffer[s_event_queue.head];
+    s_event_queue.head = (s_event_queue.head + 1) % KEY_EVENT_QUEUE_SIZE;
+    s_event_queue.count--;
+
+    __enable_irq();
+
+    return true;
+}
+
+bool Matrix_HasEvent(void)
+{
+    return (s_event_queue.count > 0);
+}
+
+const MatrixState_t* Matrix_GetState(void)
+{
+    return &s_matrix_state;
+}
+
+KeyState_t Matrix_GetKeyState(uint8_t row, uint8_t col)
+{
+    if (row >= MATRIX_ROWS || col >= MATRIX_COLS) {
+        return KEY_STATE_RELEASED;
+    }
+
+    bool pressed = (s_matrix_state.debounced[row] >> col) & 0x01;
+    return pressed ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
+}
+
+uint8_t Matrix_ToKeyIndex(uint8_t row, uint8_t col)
+{
+    return (row * MATRIX_COLS) + col;
+}
+
+void Matrix_Reset(void)
+{
+    Matrix_Init();
+}
+
+static void _Matrix_ScanRaw(void)
+{
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+
+        _Row_DriveLow(row);
+
+        __NOP(); __NOP(); __NOP(); __NOP();
+        __NOP(); __NOP(); __NOP(); __NOP();
+
+        uint8_t col_state = (uint8_t)(~(COL_GPIO_PORT->IDR) & COL_PIN_MASK);
+
+        s_matrix_state.raw[row] = col_state;
+
+        _Row_DriveHigh(row);
+    }
+}
+
+static void _Matrix_ApplyDebounce(void)
+{
+    s_matrix_state.changed = false;
+
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            DebounceState_t *db  = &s_matrix_state.debounce[row][col];
+
+            bool raw_pressed = (s_matrix_state.raw[row] >> col) & 0x01;
+
+            if (db->status == DEBOUNCE_STABLE) {
+
+                if (raw_pressed != db->stable_state) {
+
+                    db->stable_state = raw_pressed;
+                    db->status       = DEBOUNCE_DEBOUNCING;
+                    db->timer        = DEBOUNCE_TIME_MS;
+
+                    if (raw_pressed) {
+                        s_matrix_state.debounced[row] |= (1 << col);
+                    } else {
+                        s_matrix_state.debounced[row] &= ~(1 << col);
+                    }
+
+                    s_matrix_state.changed = true;
+
+                    _Matrix_GenerateEvents(row, col, raw_pressed);
+                }
+
+            } else {
+
+            }
+        }
+    }
+}
+
+static void _Matrix_GenerateEvents(uint8_t row, uint8_t col, bool new_state)
+{
+    KeyEvent_t event;
+
+    event.row       = row;
+    event.col       = col;
+    event.key_index = Matrix_ToKeyIndex(row, col);
+    event.state     = new_state ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
+    event.timestamp = HAL_GetTick();
+
+    _Queue_Push(&event);
+}
+
+static bool _Queue_Push(const KeyEvent_t *event)
+{
+    if (s_event_queue.count >= KEY_EVENT_QUEUE_SIZE) {
+
+        s_event_queue.head = (s_event_queue.head + 1) % KEY_EVENT_QUEUE_SIZE;
+        s_event_queue.count--;
+    }
+
+    s_event_queue.buffer[s_event_queue.tail] = *event;
+    s_event_queue.tail = (s_event_queue.tail + 1) % KEY_EVENT_QUEUE_SIZE;
+    s_event_queue.count++;
+
+    return true;
+}
+
+static void _Row_DriveHigh(uint8_t row)
+{
+    ROW_GPIO_PORT->BSRR = s_row_pins[row];
+}
+
+static void _Row_DriveLow(uint8_t row)
+{
+    ROW_GPIO_PORT->BSRR = (uint32_t)s_row_pins[row] << 16U;
+}
+```
+
+### `Src\stm32f4xx_hal_msp.c`
+```c
+#include "main.h"
+
+void HAL_MspInit(void)
+{
+
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  __HAL_RCC_PWR_CLK_ENABLE();
+
+}
+```
+
+### `Src\stm32f4xx_hal_timebase_tim.c`
+```c
+#include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_tim.h"
+
+TIM_HandleTypeDef        htim5;
+
+HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
+{
+  RCC_ClkInitTypeDef    clkconfig;
+  uint32_t              uwTimclock, uwAPB1Prescaler = 0U;
+
+  uint32_t              uwPrescalerValue = 0U;
+  uint32_t              pFLatency;
+
+  HAL_StatusTypeDef     status;
+
+  __HAL_RCC_TIM5_CLK_ENABLE();
+
+  HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
+
+  uwAPB1Prescaler = clkconfig.APB1CLKDivider;
+
+  if (uwAPB1Prescaler == RCC_HCLK_DIV1)
+  {
+    uwTimclock = HAL_RCC_GetPCLK1Freq();
+  }
+  else
+  {
+    uwTimclock = 2UL * HAL_RCC_GetPCLK1Freq();
+  }
+
+  uwPrescalerValue = (uint32_t) ((uwTimclock / 1000000U) - 1U);
+
+  htim5.Instance = TIM5;
+
+  htim5.Init.Period = (1000000U / 1000U) - 1U;
+  htim5.Init.Prescaler = uwPrescalerValue;
+  htim5.Init.ClockDivision = 0;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+
+  status = HAL_TIM_Base_Init(&htim5);
+  if (status == HAL_OK)
+  {
+
+    status = HAL_TIM_Base_Start_IT(&htim5);
+    if (status == HAL_OK)
+    {
+
+        HAL_NVIC_EnableIRQ(TIM5_IRQn);
+
+      if (TickPriority < (1UL << __NVIC_PRIO_BITS))
+      {
+
+        HAL_NVIC_SetPriority(TIM5_IRQn, TickPriority, 0U);
+        uwTickPrio = TickPriority;
+      }
+      else
+      {
+        status = HAL_ERROR;
+      }
+    }
+  }
+
+  return status;
+}
+
+void HAL_SuspendTick(void)
+{
+
+  __HAL_TIM_DISABLE_IT(&htim5, TIM_IT_UPDATE);
+}
+
+void HAL_ResumeTick(void)
+{
+
+  __HAL_TIM_ENABLE_IT(&htim5, TIM_IT_UPDATE);
+}
+```
+
+### `Src\stm32f4xx_it.c`
+```c
+#include "main.h"
+#include "stm32f4xx_it.h"
+
+extern TIM_HandleTypeDef htim2;
+extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart1_tx;
+extern UART_HandleTypeDef huart1;
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+extern TIM_HandleTypeDef htim5;
+
+void NMI_Handler(void)
+{
+
+   while (1)
+  {
+  }
+
+}
+
+void HardFault_Handler(void)
+{
+
+  while (1)
+  {
+
+  }
+}
+
+void MemManage_Handler(void)
+{
+
+  while (1)
+  {
+
+  }
+}
+
+void BusFault_Handler(void)
+{
+
+  while (1)
+  {
+
+  }
+}
+
+void UsageFault_Handler(void)
+{
+
+  while (1)
+  {
+
+  }
+}
+
+void SVC_Handler(void)
+{
+
+}
+
+void DebugMon_Handler(void)
+{
+
+}
+
+void PendSV_Handler(void)
+{
+
+}
+
+void SysTick_Handler(void)
+{
+
+}
+
+void TIM2_IRQHandler(void)
+{
+
+  HAL_TIM_IRQHandler(&htim2);
+
+}
+
+void USART1_IRQHandler(void)
+{
+
+  HAL_UART_IRQHandler(&huart1);
+
+}
+
+void TIM5_IRQHandler(void)
+{
+
+  HAL_TIM_IRQHandler(&htim5);
+
+}
+
+void DMA2_Stream2_IRQHandler(void)
+{
+
+  HAL_DMA_IRQHandler(&hdma_usart1_rx);
+
+}
+
+void OTG_FS_IRQHandler(void)
+{
+
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+
+}
+
+void DMA2_Stream7_IRQHandler(void)
+{
+
+  HAL_DMA_IRQHandler(&hdma_usart1_tx);
+
+}
+```
+
+### `Src\syscalls.c`
+```c
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
+#include <signal.h>
+#include <time.h>
+#include <sys/time.h>
+#include <sys/times.h>
+
+extern int __io_putchar(int ch) __attribute__((weak));
+extern int __io_getchar(void) __attribute__((weak));
+
+char *__env[1] = { 0 };
+char **environ = __env;
+
+void initialise_monitor_handles()
+{
+}
+
+int _getpid(void)
+{
+  return 1;
+}
+
+int _kill(int pid, int sig)
+{
+  (void)pid;
+  (void)sig;
+  errno = EINVAL;
+  return -1;
+}
+
+void _exit (int status)
+{
+  _kill(status, -1);
+  while (1) {}
+}
+
+__attribute__((weak)) int _read(int file, char *ptr, int len)
+{
+  (void)file;
+  int DataIdx;
+
+  for (DataIdx = 0; DataIdx < len; DataIdx++)
+  {
+    *ptr++ = __io_getchar();
+  }
+
+  return len;
+}
+
+__attribute__((weak)) int _write(int file, char *ptr, int len)
+{
+  (void)file;
+  int DataIdx;
+
+  for (DataIdx = 0; DataIdx < len; DataIdx++)
+  {
+    __io_putchar(*ptr++);
+  }
+  return len;
+}
+
+int _close(int file)
+{
+  (void)file;
+  return -1;
+}
+
+int _fstat(int file, struct stat *st)
+{
+  (void)file;
+  st->st_mode = S_IFCHR;
+  return 0;
+}
+
+int _isatty(int file)
+{
+  (void)file;
+  return 1;
+}
+
+int _lseek(int file, int ptr, int dir)
+{
+  (void)file;
+  (void)ptr;
+  (void)dir;
+  return 0;
+}
+
+int _open(char *path, int flags, ...)
+{
+  (void)path;
+  (void)flags;
+
+  return -1;
+}
+
+int _wait(int *status)
+{
+  (void)status;
+  errno = ECHILD;
+  return -1;
+}
+
+int _unlink(char *name)
+{
+  (void)name;
+  errno = ENOENT;
+  return -1;
+}
+
+int _times(struct tms *buf)
+{
+  (void)buf;
+  return -1;
+}
+
+int _stat(char *file, struct stat *st)
+{
+  (void)file;
+  st->st_mode = S_IFCHR;
+  return 0;
+}
+
+int _link(char *old, char *new)
+{
+  (void)old;
+  (void)new;
+  errno = EMLINK;
+  return -1;
+}
+
+int _fork(void)
+{
+  errno = EAGAIN;
+  return -1;
+}
+
+int _execve(char *name, char **argv, char **env)
+{
+  (void)name;
+  (void)argv;
+  (void)env;
+  errno = ENOMEM;
+  return -1;
+}
+```
+
+### `Src\sysmem.c`
+```c
+#include <errno.h>
+#include <stdint.h>
+
+static uint8_t *__sbrk_heap_end = NULL;
+
+void *_sbrk(ptrdiff_t incr)
+{
+  extern uint8_t _end;
+  extern uint8_t _estack;
+  extern uint32_t _Min_Stack_Size;
+  const uint32_t stack_limit = (uint32_t)&_estack - (uint32_t)&_Min_Stack_Size;
+  const uint8_t *max_heap = (uint8_t *)stack_limit;
+  uint8_t *prev_heap_end;
+
+  if (NULL == __sbrk_heap_end)
+  {
+    __sbrk_heap_end = &_end;
+  }
+
+  if (__sbrk_heap_end + incr > max_heap)
+  {
+    errno = ENOMEM;
+    return (void *)-1;
+  }
+
+  prev_heap_end = __sbrk_heap_end;
+  __sbrk_heap_end += incr;
+
+  return (void *)prev_heap_end;
+}
+```
+
+### `Src\system_stm32f4xx.c`
+```c
+#include "stm32f4xx.h"
+
+#if !defined  (HSE_VALUE)
+  #define HSE_VALUE    ((uint32_t)25000000)
+#endif
+
+#if !defined  (HSI_VALUE)
+  #define HSI_VALUE    ((uint32_t)16000000)
+#endif
+
+#if defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx)\
+ || defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)\
+ || defined(STM32F469xx) || defined(STM32F479xx) || defined(STM32F412Zx) || defined(STM32F412Vx)
+
+#endif
+
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)\
+ || defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx)
+
+#endif
+
+#if defined(USER_VECT_TAB_ADDRESS)
+
+#if defined(VECT_TAB_SRAM)
+#define VECT_TAB_BASE_ADDRESS   SRAM_BASE
+#else
+#define VECT_TAB_BASE_ADDRESS   FLASH_BASE
+#endif
+#if !defined(VECT_TAB_OFFSET)
+#define VECT_TAB_OFFSET         0x00000000U
+#endif
+#endif
+
+uint32_t SystemCoreClock = 16000000;
+const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
+const uint8_t APBPrescTable[8]  = {0, 0, 0, 0, 1, 2, 3, 4};
+
+#if defined (DATA_IN_ExtSRAM) || defined (DATA_IN_ExtSDRAM)
+  static void SystemInit_ExtMemCtl(void);
+#endif
+
+void SystemInit(void)
+{
+
+  #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+    SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));
+  #endif
+
+#if defined (DATA_IN_ExtSRAM) || defined (DATA_IN_ExtSDRAM)
+  SystemInit_ExtMemCtl();
+#endif
+
+#if defined(USER_VECT_TAB_ADDRESS)
+  SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET;
+#endif
+}
+
+void SystemCoreClockUpdate(void)
+{
+  uint32_t tmp, pllvco, pllp, pllsource, pllm;
+
+  tmp = RCC->CFGR & RCC_CFGR_SWS;
+
+  switch (tmp)
+  {
+    case 0x00:
+      SystemCoreClock = HSI_VALUE;
+      break;
+    case 0x04:
+      SystemCoreClock = HSE_VALUE;
+      break;
+    case 0x08:
+
+      pllsource = (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) >> 22;
+      pllm = RCC->PLLCFGR & RCC_PLLCFGR_PLLM;
+
+      if (pllsource != 0)
+      {
+
+        pllvco = (HSE_VALUE / pllm) * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 6);
+      }
+      else
+      {
+
+        pllvco = (HSI_VALUE / pllm) * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 6);
+      }
+
+      pllp = (((RCC->PLLCFGR & RCC_PLLCFGR_PLLP) >>16) + 1 ) *2;
+      SystemCoreClock = pllvco/pllp;
+      break;
+    default:
+      SystemCoreClock = HSI_VALUE;
+      break;
+  }
+
+  tmp = AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> 4)];
+
+  SystemCoreClock >>= tmp;
+}
+
+#if defined (DATA_IN_ExtSRAM) && defined (DATA_IN_ExtSDRAM)
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)\
+ || defined(STM32F469xx) || defined(STM32F479xx)
+
+void SystemInit_ExtMemCtl(void)
+{
+  __IO uint32_t tmp = 0x00;
+
+  register uint32_t tmpreg = 0, timeout = 0xFFFF;
+  register __IO uint32_t index;
+
+  RCC->AHB1ENR |= 0x000001F8;
+
+  tmp = READ_BIT(RCC->AHB1ENR, RCC_AHB1ENR_GPIOCEN);
+
+  GPIOD->AFR[0]  = 0x00CCC0CC;
+  GPIOD->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOD->MODER   = 0xAAAA0A8A;
+
+  GPIOD->OSPEEDR = 0xFFFF0FCF;
+
+  GPIOD->OTYPER  = 0x00000000;
+
+  GPIOD->PUPDR   = 0x00000000;
+
+  GPIOE->AFR[0]  = 0xC00CC0CC;
+  GPIOE->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOE->MODER   = 0xAAAA828A;
+
+  GPIOE->OSPEEDR = 0xFFFFC3CF;
+
+  GPIOE->OTYPER  = 0x00000000;
+
+  GPIOE->PUPDR   = 0x00000000;
+
+  GPIOF->AFR[0]  = 0xCCCCCCCC;
+  GPIOF->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOF->MODER   = 0xAA800AAA;
+
+  GPIOF->OSPEEDR = 0xAA800AAA;
+
+  GPIOF->OTYPER  = 0x00000000;
+
+  GPIOF->PUPDR   = 0x00000000;
+
+  GPIOG->AFR[0]  = 0xCCCCCCCC;
+  GPIOG->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOG->MODER   = 0xAAAAAAAA;
+
+  GPIOG->OSPEEDR = 0xAAAAAAAA;
+
+  GPIOG->OTYPER  = 0x00000000;
+
+  GPIOG->PUPDR   = 0x00000000;
+
+  GPIOH->AFR[0]  = 0x00C0CC00;
+  GPIOH->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOH->MODER   = 0xAAAA08A0;
+
+  GPIOH->OSPEEDR = 0xAAAA08A0;
+
+  GPIOH->OTYPER  = 0x00000000;
+
+  GPIOH->PUPDR   = 0x00000000;
+
+  GPIOI->AFR[0]  = 0xCCCCCCCC;
+  GPIOI->AFR[1]  = 0x00000CC0;
+
+  GPIOI->MODER   = 0x0028AAAA;
+
+  GPIOI->OSPEEDR = 0x0028AAAA;
+
+  GPIOI->OTYPER  = 0x00000000;
+
+  GPIOI->PUPDR   = 0x00000000;
+
+  RCC->AHB3ENR |= 0x00000001;
+
+  tmp = READ_BIT(RCC->AHB3ENR, RCC_AHB3ENR_FMCEN);
+
+  FMC_Bank5_6->SDCR[0] = 0x000019E4;
+  FMC_Bank5_6->SDTR[0] = 0x01115351;
+
+  FMC_Bank5_6->SDCMR = 0x00000011;
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+  for (index = 0; index<1000; index++);
+
+  FMC_Bank5_6->SDCMR = 0x00000012;
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  timeout = 0xFFFF;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+  FMC_Bank5_6->SDCMR = 0x00000073;
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  timeout = 0xFFFF;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+  FMC_Bank5_6->SDCMR = 0x00046014;
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  timeout = 0xFFFF;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+  tmpreg = FMC_Bank5_6->SDRTR;
+  FMC_Bank5_6->SDRTR = (tmpreg | (0x0000027C<<1));
+
+  tmpreg = FMC_Bank5_6->SDCR[0];
+  FMC_Bank5_6->SDCR[0] = (tmpreg & 0xFFFFFDFF);
+
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)
+
+  FMC_Bank1->BTCR[2]  = 0x00001011;
+  FMC_Bank1->BTCR[3]  = 0x00000201;
+  FMC_Bank1E->BWTR[2] = 0x0fffffff;
+#endif
+#if defined(STM32F469xx) || defined(STM32F479xx)
+
+  FMC_Bank1->BTCR[2]  = 0x00001091;
+  FMC_Bank1->BTCR[3]  = 0x00110212;
+  FMC_Bank1E->BWTR[2] = 0x0fffffff;
+#endif
+
+  (void)(tmp);
+}
+#endif
+#elif defined (DATA_IN_ExtSRAM) || defined (DATA_IN_ExtSDRAM)
+
+void SystemInit_ExtMemCtl(void)
+{
+  __IO uint32_t tmp = 0x00;
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)\
+ || defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx)
+#if defined (DATA_IN_ExtSDRAM)
+  register uint32_t tmpreg = 0, timeout = 0xFFFF;
+  register __IO uint32_t index;
+
+#if defined(STM32F446xx)
+
+  RCC->AHB1ENR |= 0x0000007D;
+#else
+
+  RCC->AHB1ENR |= 0x000001F8;
+#endif
+
+  tmp = READ_BIT(RCC->AHB1ENR, RCC_AHB1ENR_GPIOCEN);
+
+#if defined(STM32F446xx)
+
+  GPIOA->AFR[0]  |= 0xC0000000;
+  GPIOA->AFR[1]  |= 0x00000000;
+
+  GPIOA->MODER   |= 0x00008000;
+
+  GPIOA->OSPEEDR |= 0x00008000;
+
+  GPIOA->OTYPER  |= 0x00000000;
+
+  GPIOA->PUPDR   |= 0x00000000;
+
+  GPIOC->AFR[0]  |= 0x00CC0000;
+  GPIOC->AFR[1]  |= 0x00000000;
+
+  GPIOC->MODER   |= 0x00000A00;
+
+  GPIOC->OSPEEDR |= 0x00000A00;
+
+  GPIOC->OTYPER  |= 0x00000000;
+
+  GPIOC->PUPDR   |= 0x00000000;
+#endif
+
+  GPIOD->AFR[0]  = 0x000000CC;
+  GPIOD->AFR[1]  = 0xCC000CCC;
+
+  GPIOD->MODER   = 0xA02A000A;
+
+  GPIOD->OSPEEDR = 0xA02A000A;
+
+  GPIOD->OTYPER  = 0x00000000;
+
+  GPIOD->PUPDR   = 0x00000000;
+
+  GPIOE->AFR[0]  = 0xC00000CC;
+  GPIOE->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOE->MODER   = 0xAAAA800A;
+
+  GPIOE->OSPEEDR = 0xAAAA800A;
+
+  GPIOE->OTYPER  = 0x00000000;
+
+  GPIOE->PUPDR   = 0x00000000;
+
+  GPIOF->AFR[0]  = 0xCCCCCCCC;
+  GPIOF->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOF->MODER   = 0xAA800AAA;
+
+  GPIOF->OSPEEDR = 0xAA800AAA;
+
+  GPIOF->OTYPER  = 0x00000000;
+
+  GPIOF->PUPDR   = 0x00000000;
+
+  GPIOG->AFR[0]  = 0xCCCCCCCC;
+  GPIOG->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOG->MODER   = 0xAAAAAAAA;
+
+  GPIOG->OSPEEDR = 0xAAAAAAAA;
+
+  GPIOG->OTYPER  = 0x00000000;
+
+  GPIOG->PUPDR   = 0x00000000;
+
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)\
+ || defined(STM32F469xx) || defined(STM32F479xx)
+
+  GPIOH->AFR[0]  = 0x00C0CC00;
+  GPIOH->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOH->MODER   = 0xAAAA08A0;
+
+  GPIOH->OSPEEDR = 0xAAAA08A0;
+
+  GPIOH->OTYPER  = 0x00000000;
+
+  GPIOH->PUPDR   = 0x00000000;
+
+  GPIOI->AFR[0]  = 0xCCCCCCCC;
+  GPIOI->AFR[1]  = 0x00000CC0;
+
+  GPIOI->MODER   = 0x0028AAAA;
+
+  GPIOI->OSPEEDR = 0x0028AAAA;
+
+  GPIOI->OTYPER  = 0x00000000;
+
+  GPIOI->PUPDR   = 0x00000000;
+#endif
+
+  RCC->AHB3ENR |= 0x00000001;
+
+  tmp = READ_BIT(RCC->AHB3ENR, RCC_AHB3ENR_FMCEN);
+
+#if defined(STM32F446xx)
+  FMC_Bank5_6->SDCR[0] = 0x00001954;
+#else
+  FMC_Bank5_6->SDCR[0] = 0x000019E4;
+#endif
+  FMC_Bank5_6->SDTR[0] = 0x01115351;
+
+  FMC_Bank5_6->SDCMR = 0x00000011;
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+  for (index = 0; index<1000; index++);
+
+  FMC_Bank5_6->SDCMR = 0x00000012;
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  timeout = 0xFFFF;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+#if defined(STM32F446xx)
+  FMC_Bank5_6->SDCMR = 0x000000F3;
+#else
+  FMC_Bank5_6->SDCMR = 0x00000073;
+#endif
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  timeout = 0xFFFF;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+#if defined(STM32F446xx)
+  FMC_Bank5_6->SDCMR = 0x00044014;
+#else
+  FMC_Bank5_6->SDCMR = 0x00046014;
+#endif
+  tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  timeout = 0xFFFF;
+  while((tmpreg != 0) && (timeout-- > 0))
+  {
+    tmpreg = FMC_Bank5_6->SDSR & 0x00000020;
+  }
+
+  tmpreg = FMC_Bank5_6->SDRTR;
+#if defined(STM32F446xx)
+  FMC_Bank5_6->SDRTR = (tmpreg | (0x0000050C<<1));
+#else
+  FMC_Bank5_6->SDRTR = (tmpreg | (0x0000027C<<1));
+#endif
+
+  tmpreg = FMC_Bank5_6->SDCR[0];
+  FMC_Bank5_6->SDCR[0] = (tmpreg & 0xFFFFFDFF);
+#endif
+#endif
+
+#if defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx)\
+ || defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)\
+ || defined(STM32F469xx) || defined(STM32F479xx) || defined(STM32F412Zx) || defined(STM32F412Vx)
+
+#if defined(DATA_IN_ExtSRAM)
+
+  RCC->AHB1ENR   |= 0x00000078;
+
+  tmp = READ_BIT(RCC->AHB1ENR, RCC_AHB1ENR_GPIODEN);
+
+  GPIOD->AFR[0]  = 0x00CCC0CC;
+  GPIOD->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOD->MODER   = 0xAAAA0A8A;
+
+  GPIOD->OSPEEDR = 0xFFFF0FCF;
+
+  GPIOD->OTYPER  = 0x00000000;
+
+  GPIOD->PUPDR   = 0x00000000;
+
+  GPIOE->AFR[0]  = 0xC00CC0CC;
+  GPIOE->AFR[1]  = 0xCCCCCCCC;
+
+  GPIOE->MODER   = 0xAAAA828A;
+
+  GPIOE->OSPEEDR = 0xFFFFC3CF;
+
+  GPIOE->OTYPER  = 0x00000000;
+
+  GPIOE->PUPDR   = 0x00000000;
+
+  GPIOF->AFR[0]  = 0x00CCCCCC;
+  GPIOF->AFR[1]  = 0xCCCC0000;
+
+  GPIOF->MODER   = 0xAA000AAA;
+
+  GPIOF->OSPEEDR = 0xFF000FFF;
+
+  GPIOF->OTYPER  = 0x00000000;
+
+  GPIOF->PUPDR   = 0x00000000;
+
+  GPIOG->AFR[0]  = 0x00CCCCCC;
+  GPIOG->AFR[1]  = 0x000000C0;
+
+  GPIOG->MODER   = 0x00085AAA;
+
+  GPIOG->OSPEEDR = 0x000CAFFF;
+
+  GPIOG->OTYPER  = 0x00000000;
+
+  GPIOG->PUPDR   = 0x00000000;
+
+  RCC->AHB3ENR         |= 0x00000001;
+
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx)
+
+  tmp = READ_BIT(RCC->AHB3ENR, RCC_AHB3ENR_FMCEN);
+
+  FMC_Bank1->BTCR[2]  = 0x00001011;
+  FMC_Bank1->BTCR[3]  = 0x00000201;
+  FMC_Bank1E->BWTR[2] = 0x0fffffff;
+#endif
+#if defined(STM32F469xx) || defined(STM32F479xx)
+
+  tmp = READ_BIT(RCC->AHB3ENR, RCC_AHB3ENR_FMCEN);
+
+  FMC_Bank1->BTCR[2]  = 0x00001091;
+  FMC_Bank1->BTCR[3]  = 0x00110212;
+  FMC_Bank1E->BWTR[2] = 0x0fffffff;
+#endif
+#if defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx)|| defined(STM32F417xx)\
+   || defined(STM32F412Zx) || defined(STM32F412Vx)
+
+  tmp = READ_BIT(RCC->AHB3ENR, RCC_AHB3ENR_FSMCEN);
+
+  FSMC_Bank1->BTCR[2]  = 0x00001011;
+  FSMC_Bank1->BTCR[3]  = 0x00000201;
+  FSMC_Bank1E->BWTR[2] = 0x0FFFFFFF;
+#endif
+
+#endif
+#endif
+  (void)(tmp);
+}
+#endif
+```
+
+### `Src\tim.c`
+```c
+#include "tim.h"
+
+TIM_HandleTypeDef htim2;
+
+void MX_TIM2_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 83;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+}
+
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
+{
+
+  if(tim_baseHandle->Instance==TIM2)
+  {
+
+    __HAL_RCC_TIM2_CLK_ENABLE();
+
+    HAL_NVIC_SetPriority(TIM2_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(TIM2_IRQn);
+
+  }
+}
+
+void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
+{
+
+  if(tim_baseHandle->Instance==TIM2)
+  {
+
+    __HAL_RCC_TIM2_CLK_DISABLE();
+
+    HAL_NVIC_DisableIRQ(TIM2_IRQn);
+
+  }
+}
+```
+
+### `Src\usart.c`
+```c
+#include "usart.h"
+
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart1_tx;
+
+void MX_USART1_UART_Init(void)
+{
+
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 1000000;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+}
+
+void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
+{
+
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(uartHandle->Instance==USART1)
+  {
+
+    __HAL_RCC_USART1_CLK_ENABLE();
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    hdma_usart1_rx.Instance = DMA2_Stream2;
+    hdma_usart1_rx.Init.Channel = DMA_CHANNEL_4;
+    hdma_usart1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_usart1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_usart1_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_usart1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_usart1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_usart1_rx.Init.Mode = DMA_CIRCULAR;
+    hdma_usart1_rx.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_usart1_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_usart1_rx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(uartHandle,hdmarx,hdma_usart1_rx);
+
+    hdma_usart1_tx.Instance = DMA2_Stream7;
+    hdma_usart1_tx.Init.Channel = DMA_CHANNEL_4;
+    hdma_usart1_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_usart1_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_usart1_tx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_usart1_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_usart1_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_usart1_tx.Init.Mode = DMA_NORMAL;
+    hdma_usart1_tx.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_usart1_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_usart1_tx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart1_tx);
+
+    HAL_NVIC_SetPriority(USART1_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(USART1_IRQn);
+
+  }
+}
+
+void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
+{
+
+  if(uartHandle->Instance==USART1)
+  {
+
+    __HAL_RCC_USART1_CLK_DISABLE();
+
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9|GPIO_PIN_10);
+
+    HAL_DMA_DeInit(uartHandle->hdmarx);
+    HAL_DMA_DeInit(uartHandle->hdmatx);
+
+    HAL_NVIC_DisableIRQ(USART1_IRQn);
+
+  }
+}
+```
+
+### `Src\usb_otg.c`
+```c
+#include "usb_otg.h"
+
+PCD_HandleTypeDef hpcd_USB_OTG_FS;
+
+void MX_USB_OTG_FS_PCD_Init(void)
+{
+
+  hpcd_USB_OTG_FS.Instance = USB_OTG_FS;
+  hpcd_USB_OTG_FS.Init.dev_endpoints = 4;
+  hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
+  hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
+  hpcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.vbus_sensing_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.use_dedicated_ep1 = DISABLE;
+  if (HAL_PCD_Init(&hpcd_USB_OTG_FS) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+}
+
+void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
+{
+
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(pcdHandle->Instance==USB_OTG_FS)
+  {
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+    HAL_NVIC_SetPriority(OTG_FS_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+
+  }
+}
+
+void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle)
+{
+
+  if(pcdHandle->Instance==USB_OTG_FS)
+  {
+
+    __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
+
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
+
+    HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
+
+  }
+}
+```
+
+### `Inc\dma.h`
+```c
+#ifndef __DMA_H__
+#define __DMA_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+void MX_DMA_Init(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\gpio.h`
+```c
+#ifndef __GPIO_H__
+#define __GPIO_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+void MX_GPIO_Init(void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+```
+
+### `Inc\keyboard_config.h`
+```c
+#ifndef __KEYBOARD_CONFIG_H
+#define __KEYBOARD_CONFIG_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define KEYBOARD_NAME           "Dactyl Ergonomic Keyboard"
+#define KEYBOARD_VERSION        0x0100
+#define FIRMWARE_VERSION        0x0100
+
+#define KEYBOARD_ROLE_MASTER    0
+#define KEYBOARD_ROLE_SLAVE     1
+#define KEYBOARD_ROLE           KEYBOARD_ROLE_MASTER
+
+#define MATRIX_ROWS             8
+#define MATRIX_COLS             6
+#define MATRIX_SIZE             (MATRIX_ROWS * MATRIX_COLS)
+
+#define KEYS_PER_HALF           44
+#define TOTAL_KEYS              (KEYS_PER_HALF * 2)
+
+#define ROW_GPIO_PORT           GPIOA
+#define ROW_PIN_0               GPIO_PIN_0
+#define ROW_PIN_1               GPIO_PIN_1
+#define ROW_PIN_2               GPIO_PIN_2
+#define ROW_PIN_3               GPIO_PIN_3
+#define ROW_PIN_4               GPIO_PIN_4
+#define ROW_PIN_5               GPIO_PIN_5
+#define ROW_PIN_6               GPIO_PIN_6
+#define ROW_PIN_7               GPIO_PIN_7
+
+#define ROW_PINS                { ROW_PIN_0, ROW_PIN_1, ROW_PIN_2, ROW_PIN_3, \
+                                  ROW_PIN_4, ROW_PIN_5, ROW_PIN_6, ROW_PIN_7 }
+
+#define COL_GPIO_PORT           GPIOB
+#define COL_PIN_MASK            0x003F
+#define COL_PIN_OFFSET          0
+
+#define LED_STATUS_GPIO_PORT    GPIOC
+#define LED_STATUS_GPIO_PIN     GPIO_PIN_13
+
+#define LED_LAYER_GPIO_PORT     GPIOB
+#define LED_LAYER1_GPIO_PIN     GPIO_PIN_12
+#define LED_LAYER2_GPIO_PIN     GPIO_PIN_13
+
+#define DEBOUNCE_TIME_MS        5
+
+#define MATRIX_SCAN_INTERVAL_MS 1
+#define ROW_SETTLE_US           2
+
+#define MAX_LAYERS              16
+#define DEFAULT_LAYER           0
+
+#define KEY_EVENT_QUEUE_SIZE    32
+
+#define SPLIT_UART_BAUDRATE     1000000
+#define SPLIT_TX_BUFFER_SIZE    256
+#define SPLIT_RX_BUFFER_SIZE    512
+#define SPLIT_HEARTBEAT_MS      50
+#define SPLIT_TIMEOUT_MS        100
+
+#define MAX_MACROS              32
+#define MAX_MACRO_STEPS         64
+
+#define KEYMAP_FLASH_ADDR       0x08020000
+#define KEYMAP_MAGIC_NUMBER     0xDACF1234
+#define KEYMAP_VERSION          1
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\main.h`
+```c
+#ifndef __MAIN_H
+#define __MAIN_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "stm32f4xx_hal.h"
+
+void Error_Handler(void);
+
+#define LED_STATUS_Pin GPIO_PIN_13
+#define LED_STATUS_GPIO_Port GPIOC
+#define ROW0_Pin GPIO_PIN_0
+#define ROW0_GPIO_Port GPIOA
+#define ROW1_Pin GPIO_PIN_1
+#define ROW1_GPIO_Port GPIOA
+#define ROW2_Pin GPIO_PIN_2
+#define ROW2_GPIO_Port GPIOA
+#define ROW3_Pin GPIO_PIN_3
+#define ROW3_GPIO_Port GPIOA
+#define ROW4_Pin GPIO_PIN_4
+#define ROW4_GPIO_Port GPIOA
+#define ROW5_Pin GPIO_PIN_5
+#define ROW5_GPIO_Port GPIOA
+#define ROW6_Pin GPIO_PIN_6
+#define ROW6_GPIO_Port GPIOA
+#define ROW7_Pin GPIO_PIN_7
+#define ROW7_GPIO_Port GPIOA
+#define COL0_Pin GPIO_PIN_0
+#define COL0_GPIO_Port GPIOB
+#define COL1_Pin GPIO_PIN_1
+#define COL1_GPIO_Port GPIOB
+#define COL2_Pin GPIO_PIN_2
+#define COL2_GPIO_Port GPIOB
+#define LED_LAYER1_Pin GPIO_PIN_12
+#define LED_LAYER1_GPIO_Port GPIOB
+#define LED_LAYER2_Pin GPIO_PIN_13
+#define LED_LAYER2_GPIO_Port GPIOB
+#define COL3_Pin GPIO_PIN_3
+#define COL3_GPIO_Port GPIOB
+#define COL4_Pin GPIO_PIN_4
+#define COL4_GPIO_Port GPIOB
+#define COL5_Pin GPIO_PIN_5
+#define COL5_GPIO_Port GPIOB
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\matrix_driver.h`
+```c
+#ifndef __MATRIX_DRIVER_H
+#define __MATRIX_DRIVER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+#include "keyboard_config.h"
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef enum {
+    KEY_STATE_RELEASED = 0,
+    KEY_STATE_PRESSED  = 1
+} KeyState_t;
+
+typedef struct {
+    uint8_t     key_index;
+    uint8_t     row;
+    uint8_t     col;
+    KeyState_t  state;
+    uint32_t    timestamp;
+} KeyEvent_t;
+
+typedef enum {
+    DEBOUNCE_STABLE     = 0,
+    DEBOUNCE_DEBOUNCING = 1
+} DebounceStatus_t;
+
+typedef struct {
+    DebounceStatus_t status;
+    uint8_t          timer;
+    bool             stable_state;
+} DebounceState_t;
+
+typedef struct {
+
+    uint8_t raw[MATRIX_ROWS];
+
+    uint8_t debounced[MATRIX_ROWS];
+
+    DebounceState_t debounce[MATRIX_ROWS][MATRIX_COLS];
+
+    bool changed;
+
+    uint32_t scan_count;
+} MatrixState_t;
+
+typedef struct {
+    KeyEvent_t  buffer[KEY_EVENT_QUEUE_SIZE];
+    uint8_t     head;
+    uint8_t     tail;
+    uint8_t     count;
+} KeyEventQueue_t;
+
+void Matrix_Init(void);
+
+void Matrix_Scan(void);
+
+void Matrix_DebounceTask(void);
+
+bool Matrix_GetEvent(KeyEvent_t *event);
+
+bool Matrix_HasEvent(void);
+
+const MatrixState_t* Matrix_GetState(void);
+
+KeyState_t Matrix_GetKeyState(uint8_t row, uint8_t col);
+
+uint8_t Matrix_ToKeyIndex(uint8_t row, uint8_t col);
+
+void Matrix_Reset(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\stm32f4xx_hal_conf.h`
+```c
+#ifndef __STM32F4xx_HAL_CONF_H
+#define __STM32F4xx_HAL_CONF_H
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+#define HAL_MODULE_ENABLED
+
+#define HAL_TIM_MODULE_ENABLED
+#define HAL_UART_MODULE_ENABLED
+
+#define HAL_PCD_MODULE_ENABLED
+
+#define HAL_GPIO_MODULE_ENABLED
+#define HAL_EXTI_MODULE_ENABLED
+#define HAL_DMA_MODULE_ENABLED
+#define HAL_RCC_MODULE_ENABLED
+#define HAL_FLASH_MODULE_ENABLED
+#define HAL_PWR_MODULE_ENABLED
+#define HAL_CORTEX_MODULE_ENABLED
+
+#if !defined  (HSE_VALUE)
+  #define HSE_VALUE    25000000U
+#endif
+
+#if !defined  (HSE_STARTUP_TIMEOUT)
+  #define HSE_STARTUP_TIMEOUT    100U
+#endif
+
+#if !defined  (HSI_VALUE)
+  #define HSI_VALUE    ((uint32_t)16000000U)
+#endif
+
+#if !defined  (LSI_VALUE)
+ #define LSI_VALUE  32000U
+#endif
+
+#if !defined  (LSE_VALUE)
+ #define LSE_VALUE  32768U
+#endif
+
+#if !defined  (LSE_STARTUP_TIMEOUT)
+  #define LSE_STARTUP_TIMEOUT    5000U
+#endif
+
+#if !defined  (EXTERNAL_CLOCK_VALUE)
+  #define EXTERNAL_CLOCK_VALUE    12288000U
+#endif
+
+#define  VDD_VALUE		      3300U
+#define  TICK_INT_PRIORITY            15U
+#define  USE_RTOS                     0U
+#define  PREFETCH_ENABLE              1U
+#define  INSTRUCTION_CACHE_ENABLE     1U
+#define  DATA_CACHE_ENABLE            1U
+
+#define  USE_HAL_ADC_REGISTER_CALLBACKS         0U
+#define  USE_HAL_CAN_REGISTER_CALLBACKS         0U
+#define  USE_HAL_CEC_REGISTER_CALLBACKS         0U
+#define  USE_HAL_CRYP_REGISTER_CALLBACKS        0U
+#define  USE_HAL_DAC_REGISTER_CALLBACKS         0U
+#define  USE_HAL_DCMI_REGISTER_CALLBACKS        0U
+#define  USE_HAL_DFSDM_REGISTER_CALLBACKS       0U
+#define  USE_HAL_DMA2D_REGISTER_CALLBACKS       0U
+#define  USE_HAL_DSI_REGISTER_CALLBACKS         0U
+#define  USE_HAL_ETH_REGISTER_CALLBACKS         0U
+#define  USE_HAL_HASH_REGISTER_CALLBACKS        0U
+#define  USE_HAL_HCD_REGISTER_CALLBACKS         0U
+#define  USE_HAL_I2C_REGISTER_CALLBACKS         0U
+#define  USE_HAL_FMPI2C_REGISTER_CALLBACKS      0U
+#define  USE_HAL_FMPSMBUS_REGISTER_CALLBACKS    0U
+#define  USE_HAL_I2S_REGISTER_CALLBACKS         0U
+#define  USE_HAL_IRDA_REGISTER_CALLBACKS        0U
+#define  USE_HAL_LPTIM_REGISTER_CALLBACKS       0U
+#define  USE_HAL_LTDC_REGISTER_CALLBACKS        0U
+#define  USE_HAL_MMC_REGISTER_CALLBACKS         0U
+#define  USE_HAL_NAND_REGISTER_CALLBACKS        0U
+#define  USE_HAL_NOR_REGISTER_CALLBACKS         0U
+#define  USE_HAL_PCCARD_REGISTER_CALLBACKS      0U
+#define  USE_HAL_PCD_REGISTER_CALLBACKS         0U
+#define  USE_HAL_QSPI_REGISTER_CALLBACKS        0U
+#define  USE_HAL_RNG_REGISTER_CALLBACKS         0U
+#define  USE_HAL_RTC_REGISTER_CALLBACKS         0U
+#define  USE_HAL_SAI_REGISTER_CALLBACKS         0U
+#define  USE_HAL_SD_REGISTER_CALLBACKS          0U
+#define  USE_HAL_SMARTCARD_REGISTER_CALLBACKS   0U
+#define  USE_HAL_SDRAM_REGISTER_CALLBACKS       0U
+#define  USE_HAL_SRAM_REGISTER_CALLBACKS        0U
+#define  USE_HAL_SPDIFRX_REGISTER_CALLBACKS     0U
+#define  USE_HAL_SMBUS_REGISTER_CALLBACKS       0U
+#define  USE_HAL_SPI_REGISTER_CALLBACKS         0U
+#define  USE_HAL_TIM_REGISTER_CALLBACKS         0U
+#define  USE_HAL_UART_REGISTER_CALLBACKS        0U
+#define  USE_HAL_USART_REGISTER_CALLBACKS       0U
+#define  USE_HAL_WWDG_REGISTER_CALLBACKS        0U
+
+#define MAC_ADDR0   2U
+#define MAC_ADDR1   0U
+#define MAC_ADDR2   0U
+#define MAC_ADDR3   0U
+#define MAC_ADDR4   0U
+#define MAC_ADDR5   0U
+
+#define ETH_RX_BUF_SIZE                ETH_MAX_PACKET_SIZE
+#define ETH_TX_BUF_SIZE                ETH_MAX_PACKET_SIZE
+#define ETH_RXBUFNB                    4U
+#define ETH_TXBUFNB                    4U
+
+#define DP83848_PHY_ADDRESS
+
+#define PHY_RESET_DELAY                 0x000000FFU
+
+#define PHY_CONFIG_DELAY                0x00000FFFU
+
+#define PHY_READ_TO                     0x0000FFFFU
+#define PHY_WRITE_TO                    0x0000FFFFU
+
+#define PHY_BCR                         ((uint16_t)0x0000U)
+#define PHY_BSR                         ((uint16_t)0x0001U)
+
+#define PHY_RESET                       ((uint16_t)0x8000U)
+#define PHY_LOOPBACK                    ((uint16_t)0x4000U)
+#define PHY_FULLDUPLEX_100M             ((uint16_t)0x2100U)
+#define PHY_HALFDUPLEX_100M             ((uint16_t)0x2000U)
+#define PHY_FULLDUPLEX_10M              ((uint16_t)0x0100U)
+#define PHY_HALFDUPLEX_10M              ((uint16_t)0x0000U)
+#define PHY_AUTONEGOTIATION             ((uint16_t)0x1000U)
+#define PHY_RESTART_AUTONEGOTIATION     ((uint16_t)0x0200U)
+#define PHY_POWERDOWN                   ((uint16_t)0x0800U)
+#define PHY_ISOLATE                     ((uint16_t)0x0400U)
+
+#define PHY_AUTONEGO_COMPLETE           ((uint16_t)0x0020U)
+#define PHY_LINKED_STATUS               ((uint16_t)0x0004U)
+#define PHY_JABBER_DETECTION            ((uint16_t)0x0002U)
+
+#define PHY_SR                          ((uint16_t))
+
+#define PHY_SPEED_STATUS                ((uint16_t))
+#define PHY_DUPLEX_STATUS               ((uint16_t))
+
+#define USE_SPI_CRC                     0U
+
+#ifdef HAL_RCC_MODULE_ENABLED
+  #include "stm32f4xx_hal_rcc.h"
+#endif
+
+#ifdef HAL_GPIO_MODULE_ENABLED
+  #include "stm32f4xx_hal_gpio.h"
+#endif
+
+#ifdef HAL_EXTI_MODULE_ENABLED
+  #include "stm32f4xx_hal_exti.h"
+#endif
+
+#ifdef HAL_DMA_MODULE_ENABLED
+  #include "stm32f4xx_hal_dma.h"
+#endif
+
+#ifdef HAL_CORTEX_MODULE_ENABLED
+  #include "stm32f4xx_hal_cortex.h"
+#endif
+
+#ifdef HAL_ADC_MODULE_ENABLED
+  #include "stm32f4xx_hal_adc.h"
+#endif
+
+#ifdef HAL_CAN_MODULE_ENABLED
+  #include "stm32f4xx_hal_can.h"
+#endif
+
+#ifdef HAL_CAN_LEGACY_MODULE_ENABLED
+  #include "stm32f4xx_hal_can_legacy.h"
+#endif
+
+#ifdef HAL_CRC_MODULE_ENABLED
+  #include "stm32f4xx_hal_crc.h"
+#endif
+
+#ifdef HAL_CRYP_MODULE_ENABLED
+  #include "stm32f4xx_hal_cryp.h"
+#endif
+
+#ifdef HAL_DMA2D_MODULE_ENABLED
+  #include "stm32f4xx_hal_dma2d.h"
+#endif
+
+#ifdef HAL_DAC_MODULE_ENABLED
+  #include "stm32f4xx_hal_dac.h"
+#endif
+
+#ifdef HAL_DCMI_MODULE_ENABLED
+  #include "stm32f4xx_hal_dcmi.h"
+#endif
+
+#ifdef HAL_ETH_MODULE_ENABLED
+  #include "stm32f4xx_hal_eth.h"
+#endif
+
+#ifdef HAL_ETH_LEGACY_MODULE_ENABLED
+  #include "stm32f4xx_hal_eth_legacy.h"
+#endif
+
+#ifdef HAL_FLASH_MODULE_ENABLED
+  #include "stm32f4xx_hal_flash.h"
+#endif
+
+#ifdef HAL_SRAM_MODULE_ENABLED
+  #include "stm32f4xx_hal_sram.h"
+#endif
+
+#ifdef HAL_NOR_MODULE_ENABLED
+  #include "stm32f4xx_hal_nor.h"
+#endif
+
+#ifdef HAL_NAND_MODULE_ENABLED
+  #include "stm32f4xx_hal_nand.h"
+#endif
+
+#ifdef HAL_PCCARD_MODULE_ENABLED
+  #include "stm32f4xx_hal_pccard.h"
+#endif
+
+#ifdef HAL_SDRAM_MODULE_ENABLED
+  #include "stm32f4xx_hal_sdram.h"
+#endif
+
+#ifdef HAL_HASH_MODULE_ENABLED
+ #include "stm32f4xx_hal_hash.h"
+#endif
+
+#ifdef HAL_I2C_MODULE_ENABLED
+ #include "stm32f4xx_hal_i2c.h"
+#endif
+
+#ifdef HAL_SMBUS_MODULE_ENABLED
+ #include "stm32f4xx_hal_smbus.h"
+#endif
+
+#ifdef HAL_I2S_MODULE_ENABLED
+ #include "stm32f4xx_hal_i2s.h"
+#endif
+
+#ifdef HAL_IWDG_MODULE_ENABLED
+ #include "stm32f4xx_hal_iwdg.h"
+#endif
+
+#ifdef HAL_LTDC_MODULE_ENABLED
+ #include "stm32f4xx_hal_ltdc.h"
+#endif
+
+#ifdef HAL_PWR_MODULE_ENABLED
+ #include "stm32f4xx_hal_pwr.h"
+#endif
+
+#ifdef HAL_RNG_MODULE_ENABLED
+ #include "stm32f4xx_hal_rng.h"
+#endif
+
+#ifdef HAL_RTC_MODULE_ENABLED
+ #include "stm32f4xx_hal_rtc.h"
+#endif
+
+#ifdef HAL_SAI_MODULE_ENABLED
+ #include "stm32f4xx_hal_sai.h"
+#endif
+
+#ifdef HAL_SD_MODULE_ENABLED
+ #include "stm32f4xx_hal_sd.h"
+#endif
+
+#ifdef HAL_SPI_MODULE_ENABLED
+ #include "stm32f4xx_hal_spi.h"
+#endif
+
+#ifdef HAL_TIM_MODULE_ENABLED
+ #include "stm32f4xx_hal_tim.h"
+#endif
+
+#ifdef HAL_UART_MODULE_ENABLED
+ #include "stm32f4xx_hal_uart.h"
+#endif
+
+#ifdef HAL_USART_MODULE_ENABLED
+ #include "stm32f4xx_hal_usart.h"
+#endif
+
+#ifdef HAL_IRDA_MODULE_ENABLED
+ #include "stm32f4xx_hal_irda.h"
+#endif
+
+#ifdef HAL_SMARTCARD_MODULE_ENABLED
+ #include "stm32f4xx_hal_smartcard.h"
+#endif
+
+#ifdef HAL_WWDG_MODULE_ENABLED
+ #include "stm32f4xx_hal_wwdg.h"
+#endif
+
+#ifdef HAL_PCD_MODULE_ENABLED
+ #include "stm32f4xx_hal_pcd.h"
+#endif
+
+#ifdef HAL_HCD_MODULE_ENABLED
+ #include "stm32f4xx_hal_hcd.h"
+#endif
+
+#ifdef HAL_DSI_MODULE_ENABLED
+ #include "stm32f4xx_hal_dsi.h"
+#endif
+
+#ifdef HAL_QSPI_MODULE_ENABLED
+ #include "stm32f4xx_hal_qspi.h"
+#endif
+
+#ifdef HAL_CEC_MODULE_ENABLED
+ #include "stm32f4xx_hal_cec.h"
+#endif
+
+#ifdef HAL_FMPI2C_MODULE_ENABLED
+ #include "stm32f4xx_hal_fmpi2c.h"
+#endif
+
+#ifdef HAL_FMPSMBUS_MODULE_ENABLED
+ #include "stm32f4xx_hal_fmpsmbus.h"
+#endif
+
+#ifdef HAL_SPDIFRX_MODULE_ENABLED
+ #include "stm32f4xx_hal_spdifrx.h"
+#endif
+
+#ifdef HAL_DFSDM_MODULE_ENABLED
+ #include "stm32f4xx_hal_dfsdm.h"
+#endif
+
+#ifdef HAL_LPTIM_MODULE_ENABLED
+ #include "stm32f4xx_hal_lptim.h"
+#endif
+
+#ifdef HAL_MMC_MODULE_ENABLED
+ #include "stm32f4xx_hal_mmc.h"
+#endif
+
+#ifdef  USE_FULL_ASSERT
+
+  #define assert_param(expr) ((expr) ? (void)0U : assert_failed((uint8_t *)__FILE__, __LINE__))
+
+  void assert_failed(uint8_t* file, uint32_t line);
+#else
+  #define assert_param(expr) ((void)0U)
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\stm32f4xx_it.h`
+```c
+#ifndef __STM32F4xx_IT_H
+#define __STM32F4xx_IT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void NMI_Handler(void);
+void HardFault_Handler(void);
+void MemManage_Handler(void);
+void BusFault_Handler(void);
+void UsageFault_Handler(void);
+void SVC_Handler(void);
+void DebugMon_Handler(void);
+void PendSV_Handler(void);
+void SysTick_Handler(void);
+void TIM2_IRQHandler(void);
+void USART1_IRQHandler(void);
+void TIM5_IRQHandler(void);
+void DMA2_Stream2_IRQHandler(void);
+void OTG_FS_IRQHandler(void);
+void DMA2_Stream7_IRQHandler(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\tim.h`
+```c
+#ifndef __TIM_H__
+#define __TIM_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+extern TIM_HandleTypeDef htim2;
+
+void MX_TIM2_Init(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\usart.h`
+```c
+#ifndef __USART_H__
+#define __USART_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+extern UART_HandleTypeDef huart1;
+
+void MX_USART1_UART_Init(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Inc\usb_otg.h`
+```c
+#ifndef __USB_OTG_H__
+#define __USB_OTG_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+
+void MX_USB_OTG_FS_PCD_Init(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+----------------------------------------
+📊 Tổng: 23 file, ~2156 dòng (đã loại bỏ comment)
+----------------------------------------
+
+## Yêu cầu
+bây giờ thì code đúng chưa?

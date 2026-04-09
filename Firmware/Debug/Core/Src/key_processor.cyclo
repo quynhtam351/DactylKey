@@ -1,0 +1,14 @@
+../Core/Src/key_processor.c:23:6:KeyProcessor_Init	3
+../Core/Src/key_processor.c:47:6:KeyProcessor_HandleLocalEvent	9
+../Core/Src/key_processor.c:79:6:KeyProcessor_HandleRemoteEvent	9
+../Core/Src/key_processor.c:111:9:KeyProcessor_GetModifiers	1
+../Core/Src/key_processor.c:116:9:KeyProcessor_GetPressedKeys	1
+../Core/Src/key_processor.c:124:6:KeyProcessor_HasChanged	1
+../Core/Src/key_processor.c:129:6:KeyProcessor_ClearChanged	1
+../Core/Src/key_processor.c:134:28:KeyProcessor_GetState	1
+../Core/Src/key_processor.c:139:18:_ResolveKeycodeLeft	5
+../Core/Src/key_processor.c:153:18:_ResolveKeycodeRight	5
+../Core/Src/key_processor.c:167:13:_HandleBasicKey	5
+../Core/Src/key_processor.c:188:13:_HandleLayerAction	9
+../Core/Src/key_processor.c:223:13:_AddPressedKey	4
+../Core/Src/key_processor.c:236:13:_RemovePressedKey	4
