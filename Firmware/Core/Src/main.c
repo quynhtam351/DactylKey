@@ -19,9 +19,8 @@ uint8_t g_keyboard_role = KEYBOARD_ROLE_UNKNOWN;
 
 void SystemClock_Config(void);
 static void Boot_IndicateRole(void);
+static void USB_TryRemoteWakeup(void);
 
-/* ═══════════════════════════════════════════════════════════════ */
-/*                      VBUS DETECTION                             */
 /* ═══════════════════════════════════════════════════════════════ */
 
 uint8_t Role_Detect(void)
@@ -54,14 +53,11 @@ uint8_t Role_Detect(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/*                           MAIN                                  */
-/* ═══════════════════════════════════════════════════════════════ */
 
 int main(void)
 {
     HAL_Init();
     SystemClock_Config();
-
     g_keyboard_role = Role_Detect();
 
     MX_GPIO_Init();
@@ -72,7 +68,6 @@ int main(void)
     Matrix_Init();
     LedManager_Init();
     SplitComm_Init();
-
     MX_IWDG_Init();
 
     if (IS_MASTER()) {
@@ -88,62 +83,69 @@ int main(void)
     {
         HAL_IWDG_Refresh(&hiwdg);
 
-        /*
-         * Step 1: SplitComm_Process()
-         * Sets base LED pattern:
-         *   Connected    → LED_STATUS_OFF
-         *   Disconnected → LED_STATUS_BLINK_2HZ
-         */
         SplitComm_Process();
 
         if (IS_MASTER()) {
 
+            /*
+             * USB Suspend handling:
+             * When USB host suspends the bus (PC sleep/hibernate),
+             * we skip HID report sending but continue matrix scan
+             * to detect key press for remote wakeup.
+             *
+             * If any key event occurs during suspend, trigger
+             * USB remote wakeup to wake the host.
+             */
+            bool usb_suspended = USBD_HID_IsSuspended(&hUsbDeviceFS);
+
             /* Local key events */
             KeyEvent_t event;
             while (Matrix_GetEvent(&event)) {
-                KeyProcessor_HandleLocalEvent(&event);
+                if (usb_suspended) {
+                    USB_TryRemoteWakeup();
+                    /* Don't process the key — host will re-enumerate.
+                     * The key event is consumed to prevent queue buildup. */
+                } else {
+                    KeyProcessor_HandleLocalEvent(&event);
+                }
             }
 
             /* Remote key events */
             KeyEvent_t remote_event;
             while (SplitComm_GetRemoteEvent(&remote_event)) {
-                KeyProcessor_HandleRemoteEvent(&remote_event);
-            }
-
-            /* USB HID report */
-            if (USBD_HID_KeyboardReady(&hUsbDeviceFS)) {
-                HIDReporter_SendIfChanged(&hUsbDeviceFS);
-            }
-
-            /* Raw HID (reserved) */
-            uint8_t raw_buf[HID_RAW_EP_SIZE];
-            if (USBD_HID_GetRawData(raw_buf)) {
-                (void)raw_buf;
-            }
-
-            /*
-             * Step 2: USB issue detection (Master only).
-             *
-             * If split is connected but USB is not enumerated,
-             * upgrade status LED to BLINK_4HZ.
-             * This overrides the LED_STATUS_OFF set by SplitComm_Process().
-             *
-             * Condition: split connected + USB not configured.
-             * We don't signal issue when split is disconnected
-             * (BLINK_2HZ is already showing a more urgent state).
-             */
-            if (SplitComm_GetStatus() == SPLIT_CONNECTED) {
-                if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
-                    LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
+                if (usb_suspended) {
+                    USB_TryRemoteWakeup();
+                } else {
+                    KeyProcessor_HandleRemoteEvent(&remote_event);
                 }
             }
 
-            /* Update Layer LED state */
+            /* USB HID report — only when not suspended */
+            if (!usb_suspended) {
+                if (USBD_HID_KeyboardReady(&hUsbDeviceFS)) {
+                    HIDReporter_SendIfChanged(&hUsbDeviceFS);
+                }
+
+                uint8_t raw_buf[HID_RAW_EP_SIZE];
+                if (USBD_HID_GetRawData(raw_buf)) {
+                    (void)raw_buf;
+                }
+            }
+
+            /* USB issue detection (connected but not enumerated) */
+            if (SplitComm_GetStatus() == SPLIT_CONNECTED &&
+                !usb_suspended &&
+                hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
+                LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
+            }
+
+            /* Sync mismatch also uses BLINK_4HZ (set by split_comm) */
+
+            /* Layer LED */
             const KeyProcessorState_t *kp = KeyProcessor_GetState();
             LedManager_SetLayerState(kp->layer_state);
 
         } else {
-
             /* Slave: forward events */
             KeyEvent_t ev;
             while (Matrix_GetEvent(&ev)) {
@@ -152,11 +154,52 @@ int main(void)
             }
         }
 
-        /*
-         * Step 3: LedManager_Update() — always last.
-         * Reads the final pattern state and drives GPIO.
-         */
         LedManager_Update();
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+
+/*
+ * USB_TryRemoteWakeup
+ * ───────────────────
+ * Trigger USB remote wakeup when a key is pressed during USB suspend.
+ * The host will resume the bus and re-poll for HID reports.
+ *
+ * Per USB spec:
+ *   1. Device asserts remote wakeup signaling
+ *   2. Host sees the signal and resumes the bus
+ *   3. Device must stop signaling within 1-15ms
+ *
+ * We use a static flag to avoid sending multiple wakeup signals
+ * from the same suspend cycle.
+ */
+static void USB_TryRemoteWakeup(void)
+{
+    static bool s_wakeup_sent = false;
+
+    if (s_wakeup_sent) return;
+
+    PCD_HandleTypeDef *hpcd = (PCD_HandleTypeDef *)hUsbDeviceFS.pData;
+    if (hpcd == NULL) return;
+
+    /* Check that device is actually suspended and host enabled remote wakeup */
+    if (hUsbDeviceFS.dev_state == USBD_STATE_SUSPENDED &&
+        hUsbDeviceFS.dev_remote_wakeup == 1U)
+    {
+        HAL_PCD_ActivateRemoteWakeup(hpcd);
+        HAL_Delay(USB_REMOTE_WAKEUP_DURATION_MS);
+        HAL_PCD_DeActivateRemoteWakeup(hpcd);
+
+        s_wakeup_sent = true;
+    }
+
+    /*
+     * Reset flag when USB resumes (suspended flag cleared by
+     * ResumeCallback). We check each iteration.
+     */
+    if (!USBD_HID_IsSuspended(&hUsbDeviceFS)) {
+        s_wakeup_sent = false;
     }
 }
 
@@ -164,13 +207,6 @@ int main(void)
 
 static void Boot_IndicateRole(void)
 {
-    /*
-     * Blink pattern encodes detected role:
-     *   Master: 2 blinks
-     *   Slave:  4 blinks
-     *
-     * After blink, LED is OFF (LedManager will control from now on).
-     */
     uint8_t blinks = IS_MASTER() ? 2U : 4U;
     for (uint8_t i = 0U; i < blinks; i++) {
         HAL_GPIO_WritePin(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, GPIO_PIN_RESET);
@@ -179,10 +215,7 @@ static void Boot_IndicateRole(void)
         HAL_Delay(100U);
     }
     HAL_Delay(200U);
-    /* Leave LED OFF; SplitComm_Process will set pattern next loop */
 }
-
-/* ═══════════════════════════════════════════════════════════════ */
 
 void SystemClock_Config(void)
 {
@@ -200,9 +233,7 @@ void SystemClock_Config(void)
     RCC_OscInitStruct.PLL.PLLN       = 336;
     RCC_OscInitStruct.PLL.PLLP       = RCC_PLLP_DIV4;
     RCC_OscInitStruct.PLL.PLLQ       = 7;
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-        Error_Handler();
-    }
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) Error_Handler();
 
     RCC_ClkInitStruct.ClockType      = RCC_CLOCKTYPE_HCLK  | RCC_CLOCKTYPE_SYSCLK |
                                        RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
@@ -210,16 +241,12 @@ void SystemClock_Config(void)
     RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
-        Error_Handler();
-    }
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) Error_Handler();
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM5) {
-        HAL_IncTick();
-    }
+    if (htim->Instance == TIM5) HAL_IncTick();
     if (htim->Instance == TIM2) {
         Matrix_DebounceTask();
         Matrix_Scan();
@@ -233,9 +260,5 @@ void Error_Handler(void)
 }
 
 #ifdef USE_FULL_ASSERT
-void assert_failed(uint8_t *file, uint32_t line)
-{
-    (void)file;
-    (void)line;
-}
+void assert_failed(uint8_t *file, uint32_t line) { (void)file; (void)line; }
 #endif

@@ -6,18 +6,25 @@
 #include <string.h>
 
 /*
- * Split Communication Module
- * ══════════════════════════
+ * Split Communication Module — Phase 3
+ * ═════════════════════════════════════
  *
- * LED responsibility:
- *   split_comm owns PC13 pattern selection:
- *     SPLIT_CONNECTED    → LED_STATUS_OFF     (solid off = all good)
- *     SPLIT_DISCONNECTED → LED_STATUS_BLINK_2HZ
+ * New: Protocol handshake (SYNC_REQ / SYNC_RSP)
  *
- *   main.c (Master only) may OVERRIDE to LED_STATUS_BLINK_4HZ
- *   when USB is not enumerated, AFTER SplitComm_Process() returns.
- *   This works because LedManager_Update() is called last in the loop,
- *   so the final pattern set before Update() wins.
+ * On first connection (transition DISCONNECTED → CONNECTED):
+ *   Master sends SYNC_REQ with its protocol version, firmware
+ *   version, and matrix dimensions.
+ *   Slave receives SYNC_REQ, checks compatibility, responds
+ *   with SYNC_RSP containing its own info.
+ *   Master checks SYNC_RSP. If protocol_version matches
+ *   and matrix dimensions match → SYNC_OK.
+ *   If mismatch → SYNC_MISMATCH (still operates, but LED warns).
+ *   If no response within SPLIT_SYNC_TIMEOUT_MS → SYNC_TIMEOUT
+ *   (proceeds normally for backward compatibility with old firmware).
+ *
+ * Key events from slave are accepted regardless of sync status.
+ * Sync status is informational — it enables the user to know
+ * if both halves are running compatible firmware via LED pattern.
  */
 
 static SplitCommState_t s_comm;
@@ -46,12 +53,18 @@ static void     _HandleKeyEvent(const SplitPacket_t *pkt);
 static void     _HandleKeyState(const SplitPacket_t *pkt);
 static void     _HandlePing(void);
 static void     _HandlePong(void);
+static void     _HandleSyncReq(const SplitPacket_t *pkt);
+static void     _HandleSyncRsp(const SplitPacket_t *pkt);
 
 static void     _PushRemoteEvent(const KeyEvent_t *event);
 static void     _MasterHeartbeat(void);
 static void     _CheckTimeout(void);
 static void     _CheckRxParseTimeout(void);
+static void     _CheckSyncTimeout(void);
 static void     _UpdateStatusPattern(void);
+static void     _SendSyncReq(void);
+static void     _SendSyncRsp(void);
+static void     _BuildSyncPayload(SplitSyncPayload_t *p);
 static uint16_t _DMA_GetRxWritePos(void);
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -74,6 +87,11 @@ void SplitComm_Init(void)
     s_comm.tx_queue.head  = 0;
     s_comm.tx_queue.tail  = 0;
     s_comm.tx_queue.count = 0;
+
+    s_comm.sync_status         = SYNC_NOT_STARTED;
+    s_comm.sync_req_tick       = 0;
+    s_comm.remote_protocol_ver = 0;
+    s_comm.remote_fw_ver       = 0;
 
     s_remote_head  = 0;
     s_remote_tail  = 0;
@@ -98,17 +116,11 @@ void SplitComm_Process(void)
 
     if (IS_MASTER()) {
         _MasterHeartbeat();
+        _CheckSyncTimeout();
     }
 
     _CheckTimeout();
-
-    /*
-     * Set base status LED pattern from connection state.
-     * main.c may upgrade this to BLINK_4HZ for USB issues
-     * before LedManager_Update() is called.
-     */
     _UpdateStatusPattern();
-
     _TxTryDrainQueue();
 }
 
@@ -131,6 +143,11 @@ bool SplitComm_SendKeyState(const uint8_t *row_state, uint8_t num_rows)
 SplitConnStatus_t SplitComm_GetStatus(void)
 {
     return s_comm.status;
+}
+
+SplitSyncStatus_t SplitComm_GetSyncStatus(void)
+{
+    return s_comm.sync_status;
 }
 
 bool SplitComm_GetRemoteEvent(KeyEvent_t *event)
@@ -340,14 +357,27 @@ static void _CheckRxParseTimeout(void)
 static void _HandlePacket(const SplitPacket_t *pkt)
 {
     s_comm.last_rx_tick = HAL_GetTick();
+
+    /* Detect first connection */
     if (s_comm.status == SPLIT_DISCONNECTED) {
         s_comm.status = SPLIT_CONNECTED;
+
+        /*
+         * On first connection, Master initiates handshake.
+         * Reset sync state so handshake runs for every reconnection.
+         */
+        if (IS_MASTER()) {
+            s_comm.sync_status = SYNC_NOT_STARTED;
+        }
     }
+
     switch (pkt->type) {
     case SPLIT_PKT_KEY_EVENT: _HandleKeyEvent(pkt); break;
     case SPLIT_PKT_KEY_STATE: _HandleKeyState(pkt); break;
     case SPLIT_PKT_PING:      _HandlePing();         break;
     case SPLIT_PKT_PONG:      _HandlePong();         break;
+    case SPLIT_PKT_SYNC_REQ:  _HandleSyncReq(pkt);  break;
+    case SPLIT_PKT_SYNC_RSP:  _HandleSyncRsp(pkt);  break;
     default:                                          break;
     }
 }
@@ -403,11 +433,97 @@ static void _HandlePing(void)
 static void _HandlePong(void)
 {
     if (!IS_MASTER()) return;
-    s_comm.status = SPLIT_CONNECTED;
+    /* PONG confirms connection is alive (already updated last_rx_tick) */
+}
+
+/*
+ * Slave receives SYNC_REQ from Master.
+ * Check compatibility, respond with SYNC_RSP.
+ */
+static void _HandleSyncReq(const SplitPacket_t *pkt)
+{
+    if (!IS_SLAVE()) return;
+    if (pkt->length < sizeof(SplitSyncPayload_t)) return;
+
+    const SplitSyncPayload_t *req =
+        (const SplitSyncPayload_t *)pkt->payload;
+
+    /* Store remote info */
+    s_comm.remote_protocol_ver = req->protocol_version;
+    s_comm.remote_fw_ver = ((uint16_t)req->fw_version_h << 8U) |
+                            req->fw_version_l;
+
+    /* Check compatibility */
+    if (req->protocol_version == SPLIT_PROTOCOL_VERSION &&
+        req->matrix_rows == MATRIX_ROWS &&
+        req->matrix_cols == MATRIX_COLS) {
+        s_comm.sync_status = SYNC_OK;
+    } else {
+        s_comm.sync_status = SYNC_MISMATCH;
+    }
+
+    /* Always respond so Master gets our info */
+    _SendSyncRsp();
+}
+
+/*
+ * Master receives SYNC_RSP from Slave.
+ * Verify compatibility.
+ */
+static void _HandleSyncRsp(const SplitPacket_t *pkt)
+{
+    if (!IS_MASTER()) return;
+    if (pkt->length < sizeof(SplitSyncPayload_t)) return;
+
+    const SplitSyncPayload_t *rsp =
+        (const SplitSyncPayload_t *)pkt->payload;
+
+    s_comm.remote_protocol_ver = rsp->protocol_version;
+    s_comm.remote_fw_ver = ((uint16_t)rsp->fw_version_h << 8U) |
+                            rsp->fw_version_l;
+
+    if (rsp->protocol_version == SPLIT_PROTOCOL_VERSION &&
+        rsp->matrix_rows == MATRIX_ROWS &&
+        rsp->matrix_cols == MATRIX_COLS) {
+        s_comm.sync_status = SYNC_OK;
+    } else {
+        s_comm.sync_status = SYNC_MISMATCH;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/*                    REMOTE EVENT QUEUE                           */
+/*                   SYNC HELPERS                                  */
+/* ═══════════════════════════════════════════════════════════════ */
+
+static void _BuildSyncPayload(SplitSyncPayload_t *p)
+{
+    p->protocol_version = SPLIT_PROTOCOL_VERSION;
+    p->fw_version_h     = (uint8_t)((FIRMWARE_VERSION >> 8U) & 0xFFU);
+    p->fw_version_l     = (uint8_t)(FIRMWARE_VERSION & 0xFFU);
+    p->matrix_rows      = MATRIX_ROWS;
+    p->matrix_cols      = MATRIX_COLS;
+}
+
+static void _SendSyncReq(void)
+{
+    SplitSyncPayload_t payload;
+    _BuildSyncPayload(&payload);
+    _BuildAndQueuePacket(SPLIT_PKT_SYNC_REQ,
+                         (const uint8_t *)&payload, sizeof(payload));
+    s_comm.sync_status   = SYNC_PENDING;
+    s_comm.sync_req_tick = HAL_GetTick();
+}
+
+static void _SendSyncRsp(void)
+{
+    SplitSyncPayload_t payload;
+    _BuildSyncPayload(&payload);
+    _BuildAndQueuePacket(SPLIT_PKT_SYNC_RSP,
+                         (const uint8_t *)&payload, sizeof(payload));
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                   REMOTE EVENT QUEUE                            */
 /* ═══════════════════════════════════════════════════════════════ */
 
 static void _PushRemoteEvent(const KeyEvent_t *event)
@@ -422,7 +538,7 @@ static void _PushRemoteEvent(const KeyEvent_t *event)
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/*                   HEARTBEAT & TIMEOUT                           */
+/*                  HEARTBEAT, SYNC, TIMEOUT                       */
 /* ═══════════════════════════════════════════════════════════════ */
 
 static void _MasterHeartbeat(void)
@@ -430,7 +546,32 @@ static void _MasterHeartbeat(void)
     uint32_t now = HAL_GetTick();
     if ((now - s_comm.last_heartbeat_tick) >= SPLIT_HEARTBEAT_MS) {
         s_comm.last_heartbeat_tick = now;
-        _BuildAndQueuePacket(SPLIT_PKT_PING, NULL, 0U);
+
+        /*
+         * If connected and sync not yet started, initiate handshake
+         * instead of sending a regular PING. The slave will respond
+         * with SYNC_RSP which also serves as proof of life.
+         */
+        if (s_comm.status == SPLIT_CONNECTED &&
+            s_comm.sync_status == SYNC_NOT_STARTED) {
+            _SendSyncReq();
+        } else {
+            _BuildAndQueuePacket(SPLIT_PKT_PING, NULL, 0U);
+        }
+    }
+}
+
+/*
+ * Check if SYNC_REQ timed out (no SYNC_RSP received).
+ * Proceed anyway — the slave might be running old firmware
+ * without SYNC support.
+ */
+static void _CheckSyncTimeout(void)
+{
+    if (s_comm.sync_status == SYNC_PENDING) {
+        if ((HAL_GetTick() - s_comm.sync_req_tick) >= SPLIT_SYNC_TIMEOUT_MS) {
+            s_comm.sync_status = SYNC_TIMEOUT;
+        }
     }
 }
 
@@ -438,27 +579,30 @@ static void _CheckTimeout(void)
 {
     if (s_comm.status == SPLIT_CONNECTED) {
         if ((HAL_GetTick() - s_comm.last_rx_tick) > SPLIT_TIMEOUT_MS) {
-            s_comm.status = SPLIT_DISCONNECTED;
+            s_comm.status      = SPLIT_DISCONNECTED;
+            s_comm.sync_status = SYNC_NOT_STARTED;
         }
     }
 }
 
 /*
- * _UpdateStatusPattern
- * ────────────────────
- * Maps split connection status to the base LED pattern.
+ * Map connection + sync status to LED pattern.
  *
- * Note: main.c may call LedManager_SetStatusPattern(BLINK_4HZ)
- * AFTER this function returns (within the same loop iteration)
- * to signal USB issues. Since LedManager_Update() is called last,
- * the most recently set pattern wins.
+ * Priority:
+ *   Disconnected       → BLINK_2HZ
+ *   Connected + sync mismatch → BLINK_4HZ  (firmware mismatch warning)
+ *   Connected + OK/pending/timeout → OFF
+ *
+ * main.c may further override to BLINK_4HZ for USB issues.
  */
 static void _UpdateStatusPattern(void)
 {
-    if (s_comm.status == SPLIT_CONNECTED) {
-        LedManager_SetStatusPattern(LED_STATUS_OFF);
-    } else {
+    if (s_comm.status != SPLIT_CONNECTED) {
         LedManager_SetStatusPattern(LED_STATUS_BLINK_2HZ);
+    } else if (s_comm.sync_status == SYNC_MISMATCH) {
+        LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
+    } else {
+        LedManager_SetStatusPattern(LED_STATUS_OFF);
     }
 }
 

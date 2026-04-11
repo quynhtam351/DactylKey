@@ -218,17 +218,17 @@ static void PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  /* Inform USB library that core enters in suspend Mode. */
-  USBD_LL_Suspend((USBD_HandleTypeDef*)hpcd->pData);
+  USBD_HandleTypeDef *pdev = (USBD_HandleTypeDef*)hpcd->pData;
+
+  USBD_LL_Suspend(pdev);
   __HAL_PCD_GATE_PHYCLOCK(hpcd);
-  /* Enter in STOP mode. */
-  /* USER CODE BEGIN 2 */
-  if (hpcd->Init.low_power_enable)
-  {
-    /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
-    SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
+
+  /* Mark suspended so main loop can reduce power */
+  USBD_HID_Custom_HandleTypeDef *hhid =
+      (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+  if (hhid != NULL) {
+      hhid->suspended = true;
   }
-  /* USER CODE END 2 */
 }
 
 /**
@@ -243,10 +243,16 @@ static void PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  /* USER CODE BEGIN 3 */
+  USBD_HandleTypeDef *pdev = (USBD_HandleTypeDef*)hpcd->pData;
 
-  /* USER CODE END 3 */
-  USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
+  USBD_LL_Resume(pdev);
+
+  /* Clear suspended flag */
+  USBD_HID_Custom_HandleTypeDef *hhid =
+      (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+  if (hhid != NULL) {
+      hhid->suspended = false;
+  }
 }
 
 /**

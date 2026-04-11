@@ -64,6 +64,28 @@ typedef struct {
     uint8_t row_state[MATRIX_ROWS];
 } __attribute__((packed)) SplitKeyStatePayload_t;
 
+/*
+ * SYNC_REQ / SYNC_RSP payload.
+ * Sent once after initial connection to verify firmware compatibility.
+ */
+typedef struct {
+    uint8_t  protocol_version;  /* SPLIT_PROTOCOL_VERSION */
+    uint8_t  fw_version_h;      /* FIRMWARE_VERSION >> 8  */
+    uint8_t  fw_version_l;      /* FIRMWARE_VERSION & 0xFF */
+    uint8_t  matrix_rows;
+    uint8_t  matrix_cols;
+} __attribute__((packed)) SplitSyncPayload_t;
+
+/* ── Sync status ──────────────────────────────────────────────── */
+
+typedef enum {
+    SYNC_NOT_STARTED = 0,
+    SYNC_PENDING,           /* SYNC_REQ sent, waiting for RSP    */
+    SYNC_OK,                /* Handshake completed, compatible   */
+    SYNC_MISMATCH,          /* Protocol or config mismatch       */
+    SYNC_TIMEOUT            /* No response, proceed anyway       */
+} SplitSyncStatus_t;
+
 /* ── Connection status ────────────────────────────────────────── */
 
 typedef enum {
@@ -107,6 +129,12 @@ typedef struct {
     uint8_t             tx_buf[SPLIT_MAX_PACKET_SIZE];
     volatile bool       tx_busy;
     SplitTxQueue_t      tx_queue;
+
+    /* Sync/handshake state */
+    SplitSyncStatus_t   sync_status;
+    uint32_t            sync_req_tick;
+    uint8_t             remote_protocol_ver;
+    uint16_t            remote_fw_ver;
 } SplitCommState_t;
 
 /* ── Public API ───────────────────────────────────────────────── */
@@ -118,8 +146,10 @@ bool SplitComm_SendKeyEvent(uint8_t key_index, uint8_t state);
 bool SplitComm_SendKeyState(const uint8_t *row_state, uint8_t num_rows);
 
 SplitConnStatus_t   SplitComm_GetStatus(void);
-bool                SplitComm_GetRemoteEvent(KeyEvent_t *event);
-bool                SplitComm_HasRemoteEvent(void);
+SplitSyncStatus_t   SplitComm_GetSyncStatus(void);
+
+bool SplitComm_GetRemoteEvent(KeyEvent_t *event);
+bool SplitComm_HasRemoteEvent(void);
 
 void SplitComm_TxCompleteCallback(void);
 void SplitComm_UART_IdleCallback(void);

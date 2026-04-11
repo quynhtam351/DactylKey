@@ -13,41 +13,28 @@ extern "C" {
 #define KEYBOARD_VERSION        0x0100
 #define FIRMWARE_VERSION        0x0100
 
-/* ── Role constants ───────────────────────────────────────────── */
+/* ── Split protocol version ───────────────────────────────────── */
+/*
+ * Increment SPLIT_PROTOCOL_VERSION when the packet format,
+ * payload structures, or packet type semantics change.
+ * Both halves must agree on this value to communicate.
+ */
+#define SPLIT_PROTOCOL_VERSION  1U
+
+/* ── Role ─────────────────────────────────────────────────────── */
 
 #define KEYBOARD_ROLE_MASTER    0U
 #define KEYBOARD_ROLE_SLAVE     1U
 #define KEYBOARD_ROLE_UNKNOWN   0xFFU
 
-/*
- * Runtime role detection.
- *
- * g_keyboard_role is set once during startup by Role_Detect()
- * based on USB VBUS presence. After Role_Detect() returns,
- * this variable is read-only for the rest of the firmware.
- *
- * Do NOT use this in ISR context without understanding that it
- * is written only once before any ISR is enabled.
- *
- * Fallback: if VBUS detection is inconclusive, the role defaults
- * to KEYBOARD_ROLE_FALLBACK defined below.
- */
 extern uint8_t g_keyboard_role;
 
-/*
- * Compile-time fallback role used when VBUS detection fails
- * (e.g., USB OTG PHY not responding, clock issue).
- * Change this to KEYBOARD_ROLE_SLAVE to make the other half
- * the default fallback.
- */
 #define KEYBOARD_ROLE_FALLBACK  KEYBOARD_ROLE_MASTER
-
-/* ── Convenience macros (runtime checks) ─────────────────────── */
 
 #define IS_MASTER()     (g_keyboard_role == KEYBOARD_ROLE_MASTER)
 #define IS_SLAVE()      (g_keyboard_role == KEYBOARD_ROLE_SLAVE)
 
-/* ── Matrix dimensions ────────────────────────────────────────── */
+/* ── Matrix ───────────────────────────────────────────────────── */
 
 #define MATRIX_ROWS             4
 #define MATRIX_COLS             4
@@ -97,7 +84,7 @@ extern uint8_t g_keyboard_role;
 #define MATRIX_SCAN_INTERVAL_MS 1
 #define ROW_SETTLE_US           2
 
-/* ── Layer system ─────────────────────────────────────────────── */
+/* ── Layer ────────────────────────────────────────────────────── */
 
 #define MAX_LAYERS              16
 #define DEFAULT_LAYER           0
@@ -114,12 +101,19 @@ extern uint8_t g_keyboard_role;
 #define SPLIT_HEARTBEAT_MS      50
 #define SPLIT_TIMEOUT_MS        100
 
-/* ── Macro system (reserved) ──────────────────────────────────── */
+/*
+ * After initial connection, Master sends SYNC_REQ.
+ * If no valid SYNC_RSP within this timeout, Master
+ * accepts the slave anyway (backward compatibility).
+ */
+#define SPLIT_SYNC_TIMEOUT_MS   500U
+
+/* ── Macro (reserved) ─────────────────────────────────────────── */
 
 #define MAX_MACROS              32
 #define MAX_MACRO_STEPS         64
 
-/* ── Flash keymap storage (reserved) ─────────────────────────── */
+/* ── Flash keymap (reserved) ──────────────────────────────────── */
 
 #define KEYMAP_FLASH_ADDR       0x08020000
 #define KEYMAP_MAGIC_NUMBER     0xDACF1234
@@ -127,19 +121,16 @@ extern uint8_t g_keyboard_role;
 
 /* ── VBUS detection ───────────────────────────────────────────── */
 
-/*
- * Milliseconds to wait after enabling USB OTG clock before
- * reading the VBUS comparator. The OTG PHY needs time to power
- * up its internal comparators.
- */
 #define VBUS_DETECT_SETTLE_MS   10U
+#define VBUS_DETECT_SAMPLES     3U
+
+/* ── USB Remote Wakeup ────────────────────────────────────────── */
 
 /*
- * Number of consecutive BSVLD readings required to confirm VBUS.
- * Sampled every 1ms. Total detection time = SETTLE + SAMPLES ms.
- * This prevents false detection from transient spikes.
+ * Duration to assert remote wakeup signal (ms).
+ * USB spec requires 1-15ms. 10ms is safe.
  */
-#define VBUS_DETECT_SAMPLES     3U
+#define USB_REMOTE_WAKEUP_DURATION_MS   10U
 
 #ifdef __cplusplus
 }
