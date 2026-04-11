@@ -1,0 +1,7 @@
+../Core/Src/media_keys.c:7:6:MediaKeys_Init	1
+../Core/Src/media_keys.c:12:6:MediaKeys_HandleKeycode	10
+../Core/Src/media_keys.c:43:24:MediaKeys_GetState	1
+../Core/Src/media_keys.c:48:6:MediaKeys_HasChanged	1
+../Core/Src/media_keys.c:53:6:MediaKeys_ClearChanged	1
+../Core/Src/media_keys.c:58:10:MediaKeys_GetUsage	2
+../Core/Src/media_keys.c:64:9:MediaKeys_GetCount	1

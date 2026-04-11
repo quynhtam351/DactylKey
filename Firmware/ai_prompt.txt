@@ -2,8 +2,8 @@
 DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
 ============================================================
 
-📄 Số file: 45
-📦 Tổng kích thước: 232.3KB
+📄 Số file: 53
+📦 Tổng kích thước: 272.6KB
 
 ## Cấu trúc
 ```
@@ -12,18 +12,22 @@ DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
   crc16.h (284B)
   default_keymap.h (5.2KB)
   dma.h (1.4KB)
+  flash_keymap.h (3.6KB)
   gpio.h (1.3KB)
-  hid_reporter.h (413B)
+  hid_reporter.h (284B)
   iwdg.h (1.3KB)
   key_processor.h (1.2KB)
-  keyboard_config.h (5.8KB)
-  keycode_defs.h (6.4KB)
+  keyboard_config.h (5.6KB)
+  keycode_defs.h (5.8KB)
   led_manager.h (2.4KB)
+  macro_engine.h (2.9KB)
   main.h (460B)
   matrix_driver.h (1.5KB)
-  split_comm.h (4.6KB)
+  raw_hid.h (1.5KB)
+  split_comm.h (5.7KB)
   stm32f4xx_hal_conf.h (19.6KB)
   stm32f4xx_it.h (2.1KB)
+  tap_hold.h (1.5KB)
   tim.h (1.3KB)
   usart.h (1.3KB)
   usb_otg.h (1.4KB)
@@ -31,20 +35,24 @@ DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
 [Core\Src]
   crc16.c (562B)
   dma.c (1.7KB)
+  flash_keymap.c (10.0KB)
   gpio.c (2.5KB)
-  hid_reporter.c (3.4KB)
-  iwdg.c (1.4KB)
-  key_processor.c (11.4KB)
+  hid_reporter.c (3.6KB)
+  iwdg.c (1018B)
+  key_processor.c (22.7KB)
   led_manager.c (5.8KB)
-  main.c (7.6KB)
-  matrix_driver.c (10.4KB)
-  split_comm.c (17.6KB)
+  macro_engine.c (6.4KB)
+  main.c (6.1KB)
+  matrix_driver.c (7.8KB)
+  raw_hid.c (7.5KB)
+  split_comm.c (22.5KB)
   stm32f4xx_hal_msp.c (2.2KB)
   stm32f4xx_hal_timebase_tim.c (4.4KB)
   stm32f4xx_it.c (3.3KB)
   syscalls.c (2.8KB)
   sysmem.c (2.7KB)
   system_stm32f4xx.c (26.1KB)
+  tap_hold.c (3.3KB)
   tim.c (2.9KB)
   usart.c (4.8KB)
   usb_otg.c (1.9KB)
@@ -54,8 +62,8 @@ DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
   usb_device.h (2.3KB)
   usbd_desc.c (3.8KB)
   usbd_desc.h (2.9KB)
-  usbd_hid_custom.c (23.0KB)
-  usbd_hid_custom.h (6.3KB)
+  usbd_hid_custom.c (14.9KB)
+  usbd_hid_custom.h (5.7KB)
 
 [USB_DEVICE\Target]
   usbd_conf.c (19.1KB)
@@ -197,6 +205,69 @@ void MX_DMA_Init(void);
 #endif
 ```
 
+### `Core\Inc\flash_keymap.h`
+```c
+#ifndef __FLASH_KEYMAP_H
+#define __FLASH_KEYMAP_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "keycode_defs.h"
+#include "keyboard_config.h"
+
+#define NUM_KEYMAP_LAYERS       2U
+
+#define KEYMAP_LEFT_SIZE        (NUM_KEYMAP_LAYERS * MATRIX_ROWS * MATRIX_COLS \
+                                  * sizeof(keycode_t))
+#define KEYMAP_RIGHT_SIZE       (NUM_KEYMAP_LAYERS * MATRIX_ROWS * MATRIX_COLS \
+                                  * sizeof(keycode_t))
+#define KEYMAP_RAW_BYTES        (KEYMAP_LEFT_SIZE + KEYMAP_RIGHT_SIZE)
+
+#define KEYMAP_PAGE_SIZE        30U
+#define KEYMAP_NUM_PAGES        5U
+
+typedef struct {
+    uint32_t    magic;
+    uint16_t    version;
+    uint16_t    crc16;
+    uint16_t    flags;
+    uint8_t     reserved[6];
+    keycode_t   left [NUM_KEYMAP_LAYERS][MATRIX_ROWS][MATRIX_COLS];
+    keycode_t   right[NUM_KEYMAP_LAYERS][MATRIX_ROWS][MATRIX_COLS];
+} FlashKeymapHeader_t;
+
+_Static_assert(sizeof(FlashKeymapHeader_t) % 4U == 0U,
+               "FlashKeymapHeader_t size must be multiple of 4");
+
+typedef struct {
+    keycode_t   left [NUM_KEYMAP_LAYERS][MATRIX_ROWS][MATRIX_COLS];
+    keycode_t   right[NUM_KEYMAP_LAYERS][MATRIX_ROWS][MATRIX_COLS];
+    bool        dirty;
+} KeymapStagingBuffer_t;
+
+bool FlashKeymap_Init(void);
+
+const keycode_t *FlashKeymap_GetLeft (uint8_t layer);
+const keycode_t *FlashKeymap_GetRight(uint8_t layer);
+
+bool FlashKeymap_StagePage(uint8_t page_idx, const uint8_t *data);
+bool FlashKeymap_Commit(void);
+bool FlashKeymap_Reset(void);
+
+bool FlashKeymap_GetPage(uint8_t page_idx, uint8_t *data_out);
+bool FlashKeymap_IsDirty(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
 ### `Core\Inc\gpio.h`
 ```c
 #ifndef __GPIO_H__
@@ -229,7 +300,6 @@ extern "C" {
 #include <stdbool.h>
 
 void HIDReporter_Init(void);
-
 void HIDReporter_SendIfChanged(USBD_HandleTypeDef *pdev);
 
 #ifdef __cplusplus
@@ -283,25 +353,28 @@ typedef struct {
     bool        changed;
     uint8_t     active_layer;
     uint32_t    layer_state;
-
     bool        rollover_overflow;
 } KeyProcessorState_t;
 
 void KeyProcessor_Init(void);
 
 void KeyProcessor_HandleLocalEvent(const KeyEvent_t *event);
-
 void KeyProcessor_HandleRemoteEvent(const KeyEvent_t *event);
+void KeyProcessor_InjectKeycode(keycode_t kc, KeyState_t state);
 
 uint8_t KeyProcessor_GetModifiers(void);
-
 uint8_t KeyProcessor_GetPressedKeys(uint8_t *keys_out, uint8_t max_keys);
 
 bool KeyProcessor_HasChanged(void);
-
 void KeyProcessor_ClearChanged(void);
 
-const KeyProcessorState_t* KeyProcessor_GetState(void);
+uint8_t KeyProcessor_GetSystemKey(void);
+bool    KeyProcessor_SystemKeyChanged(void);
+void    KeyProcessor_ClearSystemKeyChanged(void);
+
+const KeyProcessorState_t *KeyProcessor_GetState(void);
+
+void KeyProcessor_TT_Process(void);
 
 #ifdef __cplusplus
 }
@@ -324,6 +397,8 @@ extern "C" {
 #define KEYBOARD_NAME           "Dactyl Ergonomic Keyboard"
 #define KEYBOARD_VERSION        0x0100
 #define FIRMWARE_VERSION        0x0100
+
+#define SPLIT_PROTOCOL_VERSION  1U
 
 #define KEYBOARD_ROLE_MASTER    0U
 #define KEYBOARD_ROLE_SLAVE     1U
@@ -387,6 +462,8 @@ extern uint8_t g_keyboard_role;
 #define SPLIT_HEARTBEAT_MS      50
 #define SPLIT_TIMEOUT_MS        100
 
+#define SPLIT_SYNC_TIMEOUT_MS   500U
+
 #define MAX_MACROS              32
 #define MAX_MACRO_STEPS         64
 
@@ -395,8 +472,9 @@ extern uint8_t g_keyboard_role;
 #define KEYMAP_VERSION          1
 
 #define VBUS_DETECT_SETTLE_MS   10U
-
 #define VBUS_DETECT_SAMPLES     3U
+
+#define USB_REMOTE_WAKEUP_DURATION_MS   10U
 
 #ifdef __cplusplus
 }
@@ -542,11 +620,18 @@ typedef uint16_t keycode_t;
 #define MOD_BIT_RALT            0x40
 #define MOD_BIT_RGUI            0x80
 
-#define MO(layer)               (0x1000 | (0x0 << 8) | ((layer) & 0x0F) << 4)
+#define MO(layer)               (0x1000 | (0x0 << 8) | (((layer) & 0x0F) << 4))
+#define TG(layer)               (0x1000 | (0x1 << 8) | (((layer) & 0x0F) << 4))
+#define DF(layer)               (0x1000 | (0x2 << 8) | (((layer) & 0x0F) << 4))
+#define TT(layer)               (0x1000 | (0x3 << 8) | (((layer) & 0x0F) << 4))
 
-#define TG(layer)               (0x1000 | (0x1 << 8) | ((layer) & 0x0F) << 4)
+#define LAYER_ACTION(kc)        (((KC_DATA(kc)) >> 8) & 0x0FU)
+#define LAYER_TARGET(kc)        (((KC_DATA(kc)) >> 4) & 0x0FU)
 
-#define DF(layer)               (0x1000 | (0x2 << 8) | ((layer) & 0x0F) << 4)
+#define LAYER_ACTION_MO         0x0U
+#define LAYER_ACTION_TG         0x1U
+#define LAYER_ACTION_DF         0x2U
+#define LAYER_ACTION_TT         0x3U
 
 #define IS_MODIFIER(kc)         (KC_DATA(kc) >= 0xE0 && KC_DATA(kc) <= 0xE7)
 #define MODIFIER_BIT(kc)        (1U << (KC_DATA(kc) - 0xE0))
@@ -596,6 +681,69 @@ uint8_t LedManager_GetHIDLeds(void);
 void    LedManager_SetLayerState(uint32_t layer_state);
 
 void    LedManager_Update(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
+### `Core\Inc\macro_engine.h`
+```c
+#ifndef __MACRO_ENGINE_H
+#define __MACRO_ENGINE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "keycode_defs.h"
+#include "keyboard_config.h"
+
+typedef enum {
+    MACRO_STEP_END     = 0x00U,
+    MACRO_STEP_PRESS   = 0x01U,
+    MACRO_STEP_RELEASE = 0x02U,
+    MACRO_STEP_TAP     = 0x03U,
+    MACRO_STEP_DELAY   = 0x04U,
+} MacroStepType_t;
+
+typedef struct {
+    uint8_t     type;
+    uint8_t     kc_h;
+    uint8_t     kc_l;
+    uint8_t     delay_ms;
+} __attribute__((packed)) MacroStep_t;
+
+typedef struct {
+    MacroStep_t steps[MAX_MACRO_STEPS];
+    uint8_t     count;
+} Macro_t;
+
+typedef enum {
+    MACRO_EXEC_IDLE = 0,
+    MACRO_EXEC_RUNNING,
+    MACRO_EXEC_DELAY,
+} MacroExecState_t;
+
+void MacroEngine_Init(void);
+
+void MacroEngine_Trigger(uint8_t macro_id);
+
+void MacroEngine_Process(void);
+
+bool MacroEngine_IsBusy(void);
+
+bool MacroEngine_SetMacro(uint8_t macro_id, const MacroStep_t *steps, uint8_t step_count);
+
+bool MacroEngine_GetMacro(uint8_t macro_id, MacroStep_t *steps_out, uint8_t *count_out);
+
+void MacroEngine_LoadFromFlash(const uint8_t *flash_data, uint16_t size);
+
+uint16_t MacroEngine_SerializeToBuffer(uint8_t *buf, uint16_t buf_size);
 
 #ifdef __cplusplus
 }
@@ -710,6 +858,56 @@ void Matrix_Reset(void);
 #endif
 ```
 
+### `Core\Inc\raw_hid.h`
+```c
+#ifndef __RAW_HID_H
+#define __RAW_HID_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "usbd_hid_custom.h"
+#include "flash_keymap.h"
+
+#define RAW_CMD_GET_VERSION     0x01U
+#define RAW_CMD_GET_KEYMAP      0x02U
+#define RAW_CMD_SET_KEYMAP      0x03U
+#define RAW_CMD_COMMIT_KEYMAP   0x04U
+#define RAW_CMD_RESET_KEYMAP    0x05U
+#define RAW_CMD_GET_MACRO       0x06U
+#define RAW_CMD_SET_MACRO       0x07U
+#define RAW_CMD_COMMIT_MACRO    0x08U
+#define RAW_CMD_GET_STATUS      0x09U
+#define RAW_CMD_REBOOT          0xFFU
+
+#define RAW_RESP_FLAG           0x80U
+
+#define RAW_STATUS_OK           0x00U
+#define RAW_STATUS_ERROR        0x01U
+#define RAW_STATUS_BUSY         0x02U
+#define RAW_STATUS_INVALID      0x03U
+
+#define RAW_KEYMAP_PAGE_SIZE    KEYMAP_PAGE_SIZE
+#define RAW_KEYMAP_TOTAL_BYTES  KEYMAP_RAW_BYTES
+#define RAW_KEYMAP_NUM_PAGES    KEYMAP_NUM_PAGES
+
+#define RAW_MACRO_STEP_SIZE         4U
+
+#define RAW_MACRO_STEPS_PER_PAGE    6U
+
+void RawHID_Init(void);
+void RawHID_Process(USBD_HandleTypeDef *pdev);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
 ### `Core\Inc\split_comm.h`
 ```c
 #ifndef __SPLIT_COMM_H
@@ -766,6 +964,22 @@ typedef struct {
     uint8_t row_state[MATRIX_ROWS];
 } __attribute__((packed)) SplitKeyStatePayload_t;
 
+typedef struct {
+    uint8_t  protocol_version;
+    uint8_t  fw_version_h;
+    uint8_t  fw_version_l;
+    uint8_t  matrix_rows;
+    uint8_t  matrix_cols;
+} __attribute__((packed)) SplitSyncPayload_t;
+
+typedef enum {
+    SYNC_NOT_STARTED = 0,
+    SYNC_PENDING,
+    SYNC_OK,
+    SYNC_MISMATCH,
+    SYNC_TIMEOUT
+} SplitSyncStatus_t;
+
 typedef enum {
     SPLIT_DISCONNECTED = 0,
     SPLIT_CONNECTED    = 1
@@ -803,6 +1017,11 @@ typedef struct {
     uint8_t             tx_buf[SPLIT_MAX_PACKET_SIZE];
     volatile bool       tx_busy;
     SplitTxQueue_t      tx_queue;
+
+    SplitSyncStatus_t   sync_status;
+    uint32_t            sync_req_tick;
+    uint8_t             remote_protocol_ver;
+    uint16_t            remote_fw_ver;
 } SplitCommState_t;
 
 void SplitComm_Init(void);
@@ -812,8 +1031,10 @@ bool SplitComm_SendKeyEvent(uint8_t key_index, uint8_t state);
 bool SplitComm_SendKeyState(const uint8_t *row_state, uint8_t num_rows);
 
 SplitConnStatus_t   SplitComm_GetStatus(void);
-bool                SplitComm_GetRemoteEvent(KeyEvent_t *event);
-bool                SplitComm_HasRemoteEvent(void);
+SplitSyncStatus_t   SplitComm_GetSyncStatus(void);
+
+bool SplitComm_GetRemoteEvent(KeyEvent_t *event);
+bool SplitComm_HasRemoteEvent(void);
 
 void SplitComm_TxCompleteCallback(void);
 void SplitComm_UART_IdleCallback(void);
@@ -1222,6 +1443,75 @@ void DMA2_Stream7_IRQHandler(void);
 #endif
 ```
 
+### `Core\Inc\tap_hold.h`
+```c
+#ifndef __TAP_HOLD_H
+#define __TAP_HOLD_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "keycode_defs.h"
+#include "keyboard_config.h"
+#include "matrix_driver.h"
+
+#define MAX_TAP_HOLD_KEYS       32U
+#define TAPPING_TERM_MS         200U
+
+typedef enum {
+    TH_HOLD_BASIC  = 0U,
+    TH_HOLD_LAYER  = 1U,
+} TapHoldType_t;
+
+typedef struct {
+    keycode_t       tap_kc;
+    keycode_t       hold_kc;
+} TapHoldEntry_t;
+
+typedef enum {
+    TH_STATE_IDLE    = 0,
+    TH_STATE_PENDING,
+    TH_STATE_TAP_ACTIVE,
+    TH_STATE_HOLD_ACTIVE,
+} TapHoldState_t;
+
+typedef struct {
+    TapHoldState_t  state;
+    uint8_t         key_index;
+    uint8_t         th_id;
+    bool            is_remote;
+    uint32_t        press_tick;
+} TapHoldPending_t;
+
+void TapHold_Init(void);
+
+bool TapHold_SetEntry(uint8_t th_id, keycode_t tap_kc, keycode_t hold_kc);
+bool TapHold_GetEntry(uint8_t th_id, TapHoldEntry_t *entry_out);
+
+bool TapHold_HandlePress(uint8_t key_index, uint8_t th_id, bool is_remote);
+bool TapHold_HandleRelease(uint8_t key_index);
+
+void TapHold_NotifyOtherKeyPress(void);
+
+void TapHold_Process(void);
+
+bool TapHold_IsPending(uint8_t key_index);
+
+uint8_t TapHold_GetPendingKeyIndex(void);
+
+typedef void (*TapHoldFireCb_t)(keycode_t kc, KeyState_t state, bool is_remote);
+void TapHold_RegisterCallback(TapHoldFireCb_t cb);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
 ### `Core\Inc\tim.h`
 ```c
 #ifndef __TIM_H__
@@ -1333,6 +1623,252 @@ void MX_DMA_Init(void)
 }
 ```
 
+### `Core\Src\flash_keymap.c`
+```c
+#include "flash_keymap.h"
+#include "default_keymap.h"
+#include "crc16.h"
+#include "stm32f4xx_hal.h"
+#include <string.h>
+
+static KeymapStagingBuffer_t s_staging;
+
+static keycode_t s_flash_copy_left [NUM_KEYMAP_LAYERS][MATRIX_ROWS][MATRIX_COLS];
+static keycode_t s_flash_copy_right[NUM_KEYMAP_LAYERS][MATRIX_ROWS][MATRIX_COLS];
+
+static const keycode_t *s_active_left [NUM_KEYMAP_LAYERS];
+static const keycode_t *s_active_right[NUM_KEYMAP_LAYERS];
+
+static bool _Flash_Unlock(void)
+{
+    return (HAL_FLASH_Unlock() == HAL_OK);
+}
+
+static void _Flash_Lock(void)
+{
+    HAL_FLASH_Lock();
+}
+
+static bool _Flash_EraseSector5(void)
+{
+    FLASH_EraseInitTypeDef erase = {
+        .TypeErase    = FLASH_TYPEERASE_SECTORS,
+        .VoltageRange = FLASH_VOLTAGE_RANGE_3,
+        .Sector       = FLASH_SECTOR_5,
+        .NbSectors    = 1U,
+    };
+    uint32_t sector_error = 0U;
+    return (HAL_FLASHEx_Erase(&erase, &sector_error) == HAL_OK);
+}
+
+static bool _Flash_WriteBuffer(uint32_t addr,
+                                const uint8_t *data, uint32_t size)
+{
+    for (uint32_t i = 0U; i < size; i += 4U) {
+        uint32_t word;
+        memcpy(&word, data + i, 4U);
+        if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,
+                              addr + i, word) != HAL_OK) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static uint16_t _CalcHeaderCRC(const FlashKeymapHeader_t *h)
+{
+    const uint8_t *start =
+        (const uint8_t *)h + offsetof(FlashKeymapHeader_t, flags);
+    size_t len =
+        sizeof(FlashKeymapHeader_t) - offsetof(FlashKeymapHeader_t, flags);
+    return CRC16_Calculate(start, len);
+}
+
+static void _UseDefaults(void)
+{
+    s_active_left[0]  = &KEYMAP_LEFT_LAYER0[0][0];
+    s_active_left[1]  = &KEYMAP_LEFT_LAYER1[0][0];
+    s_active_right[0] = &KEYMAP_RIGHT_LAYER0[0][0];
+    s_active_right[1] = &KEYMAP_RIGHT_LAYER1[0][0];
+}
+
+static void _CopyFromFlashToRAM(const FlashKeymapHeader_t *hdr)
+{
+    for (uint8_t layer = 0U; layer < NUM_KEYMAP_LAYERS; layer++) {
+        size_t layer_bytes =
+            (size_t)(MATRIX_ROWS * MATRIX_COLS) * sizeof(keycode_t);
+
+        memcpy(s_flash_copy_left[layer],
+               hdr->left[layer],
+               layer_bytes);
+
+        memcpy(s_flash_copy_right[layer],
+               hdr->right[layer],
+               layer_bytes);
+
+        s_active_left[layer]  = &s_flash_copy_left[layer][0][0];
+        s_active_right[layer] = &s_flash_copy_right[layer][0][0];
+    }
+}
+
+bool FlashKeymap_Init(void)
+{
+    s_staging.dirty = false;
+
+    const FlashKeymapHeader_t *hdr =
+        (const FlashKeymapHeader_t *)KEYMAP_FLASH_ADDR;
+
+    if (hdr->magic != KEYMAP_MAGIC_NUMBER) {
+        _UseDefaults();
+        return false;
+    }
+
+    if (hdr->version != (uint16_t)KEYMAP_VERSION) {
+        _UseDefaults();
+        return false;
+    }
+
+    uint16_t calc_crc = _CalcHeaderCRC(hdr);
+    if (calc_crc != hdr->crc16) {
+        _UseDefaults();
+        return false;
+    }
+
+    _CopyFromFlashToRAM(hdr);
+    return true;
+}
+
+const keycode_t *FlashKeymap_GetLeft(uint8_t layer)
+{
+    if (layer >= NUM_KEYMAP_LAYERS) return NULL;
+    return s_active_left[layer];
+}
+
+const keycode_t *FlashKeymap_GetRight(uint8_t layer)
+{
+    if (layer >= NUM_KEYMAP_LAYERS) return NULL;
+    return s_active_right[layer];
+}
+
+bool FlashKeymap_StagePage(uint8_t page_idx, const uint8_t *data)
+{
+    if (page_idx >= KEYMAP_NUM_PAGES) return false;
+    if (data == NULL) return false;
+
+    uint32_t offset    = (uint32_t)page_idx * KEYMAP_PAGE_SIZE;
+    uint32_t remaining = (uint32_t)KEYMAP_RAW_BYTES - offset;
+    uint32_t copy_len  = (remaining < KEYMAP_PAGE_SIZE)
+                          ? remaining : KEYMAP_PAGE_SIZE;
+
+    uint8_t *staging_raw = (uint8_t *)s_staging.left;
+    memcpy(staging_raw + offset, data, copy_len);
+    s_staging.dirty = true;
+
+    return true;
+}
+
+bool FlashKeymap_Commit(void)
+{
+    if (!s_staging.dirty) return true;
+
+    FlashKeymapHeader_t hdr;
+    memset(&hdr, 0xFF, sizeof(hdr));
+    hdr.magic   = KEYMAP_MAGIC_NUMBER;
+    hdr.version = (uint16_t)KEYMAP_VERSION;
+    hdr.flags   = 0U;
+    memset(hdr.reserved, 0, sizeof(hdr.reserved));
+    memcpy(hdr.left,  s_staging.left,  sizeof(hdr.left));
+    memcpy(hdr.right, s_staging.right, sizeof(hdr.right));
+    hdr.crc16 = _CalcHeaderCRC(&hdr);
+
+    uint32_t write_size = (uint32_t)sizeof(FlashKeymapHeader_t);
+    if (write_size % 4U != 0U) {
+        write_size += 4U - (write_size % 4U);
+    }
+
+    uint8_t write_buf[sizeof(FlashKeymapHeader_t) + 4U];
+    memset(write_buf, 0xFF, sizeof(write_buf));
+    memcpy(write_buf, &hdr, sizeof(FlashKeymapHeader_t));
+
+    if (!_Flash_Unlock()) return false;
+
+    bool ok = _Flash_EraseSector5();
+    if (ok) {
+        ok = _Flash_WriteBuffer(KEYMAP_FLASH_ADDR, write_buf, write_size);
+    }
+
+    _Flash_Lock();
+    if (!ok) return false;
+
+    const FlashKeymapHeader_t *verify =
+        (const FlashKeymapHeader_t *)KEYMAP_FLASH_ADDR;
+
+    if (verify->magic != KEYMAP_MAGIC_NUMBER ||
+        verify->crc16 != _CalcHeaderCRC(verify)) {
+        _UseDefaults();
+        return false;
+    }
+
+    _CopyFromFlashToRAM(verify);
+    s_staging.dirty = false;
+    return true;
+}
+
+bool FlashKeymap_Reset(void)
+{
+    if (!_Flash_Unlock()) return false;
+    bool ok = _Flash_EraseSector5();
+    _Flash_Lock();
+
+    _UseDefaults();
+    s_staging.dirty = false;
+    return ok;
+}
+
+bool FlashKeymap_GetPage(uint8_t page_idx, uint8_t *data_out)
+{
+    if (page_idx >= KEYMAP_NUM_PAGES || data_out == NULL) return false;
+
+    uint32_t offset    = (uint32_t)page_idx * KEYMAP_PAGE_SIZE;
+    uint32_t remaining = (uint32_t)KEYMAP_RAW_BYTES - offset;
+    uint32_t copy_len  = (remaining < KEYMAP_PAGE_SIZE)
+                          ? remaining : KEYMAP_PAGE_SIZE;
+
+    uint8_t full_keymap[KEYMAP_RAW_BYTES];
+    uint8_t *p = full_keymap;
+
+    const size_t layer_bytes =
+        (size_t)(MATRIX_ROWS * MATRIX_COLS) * sizeof(keycode_t);
+
+    for (uint8_t layer = 0U; layer < NUM_KEYMAP_LAYERS; layer++) {
+        if (s_active_left[layer] != NULL) {
+            memcpy(p, s_active_left[layer], layer_bytes);
+        } else {
+            memset(p, 0, layer_bytes);
+        }
+        p += layer_bytes;
+    }
+
+    for (uint8_t layer = 0U; layer < NUM_KEYMAP_LAYERS; layer++) {
+        if (s_active_right[layer] != NULL) {
+            memcpy(p, s_active_right[layer], layer_bytes);
+        } else {
+            memset(p, 0, layer_bytes);
+        }
+        p += layer_bytes;
+    }
+
+    memset(data_out, 0, KEYMAP_PAGE_SIZE);
+    memcpy(data_out, full_keymap + offset, copy_len);
+    return true;
+}
+
+bool FlashKeymap_IsDirty(void)
+{
+    return s_staging.dirty;
+}
+```
+
 ### `Core\Src\gpio.c`
 ```c
 #include "gpio.h"
@@ -1384,56 +1920,95 @@ void MX_GPIO_Init(void)
 ```c
 #include "hid_reporter.h"
 #include "key_processor.h"
+#include "usbd_hid_custom.h"
 #include <string.h>
 
-#define HID_ERROR_ROLLOVER      0x01U
+#define HID_ERROR_ROLLOVER  0x01U
 
-static HID_KeyboardReport_t s_last_report;
-static HID_KeyboardReport_t s_current_report;
+static HID_KeyboardReport_t s_last_kb;
+static HID_KeyboardReport_t s_curr_kb;
+
+typedef struct {
+    uint8_t report_id;
+    uint8_t usage;
+} __attribute__((packed)) HID_SystemReport_t;
+
+static HID_SystemReport_t s_last_sys;
+static HID_SystemReport_t s_curr_sys;
 
 void HIDReporter_Init(void)
 {
-    memset(&s_last_report,    0, sizeof(HID_KeyboardReport_t));
-    memset(&s_current_report, 0, sizeof(HID_KeyboardReport_t));
+    memset(&s_last_kb, 0, sizeof(s_last_kb));
+    memset(&s_curr_kb, 0, sizeof(s_curr_kb));
+    s_last_kb.report_id = HID_REPORT_ID_KEYBOARD;
+    s_curr_kb.report_id = HID_REPORT_ID_KEYBOARD;
 
-    s_last_report.report_id    = HID_REPORT_ID_KEYBOARD;
-    s_current_report.report_id = HID_REPORT_ID_KEYBOARD;
+    memset(&s_last_sys, 0, sizeof(s_last_sys));
+    memset(&s_curr_sys, 0, sizeof(s_curr_sys));
+    s_last_sys.report_id = HID_REPORT_ID_SYSTEM;
+    s_curr_sys.report_id = HID_REPORT_ID_SYSTEM;
+}
+
+static void _SendKeyboardReport(USBD_HandleTypeDef *pdev)
+{
+    if (!KeyProcessor_HasChanged()) return;
+
+    if (!USBD_HID_KeyboardReady(pdev)) return;
+
+    const KeyProcessorState_t *state = KeyProcessor_GetState();
+
+    s_curr_kb.report_id = HID_REPORT_ID_KEYBOARD;
+    s_curr_kb.modifiers = state->modifiers;
+    s_curr_kb.reserved  = 0x00U;
+
+    if (state->rollover_overflow) {
+        memset(s_curr_kb.keycodes, HID_ERROR_ROLLOVER, 6U);
+    } else {
+        memset(s_curr_kb.keycodes, 0U, 6U);
+        uint8_t count = (state->pressed_count > 6U) ? 6U : state->pressed_count;
+        memcpy(s_curr_kb.keycodes, state->pressed_keys, count);
+    }
+
+    if (memcmp(&s_curr_kb, &s_last_kb, sizeof(HID_KeyboardReport_t)) == 0) {
+
+        KeyProcessor_ClearChanged();
+        return;
+    }
+
+    USBD_StatusTypeDef st = USBD_HID_SendKeyboardReport(pdev, &s_curr_kb);
+    if (st == USBD_OK) {
+        memcpy(&s_last_kb, &s_curr_kb, sizeof(HID_KeyboardReport_t));
+        KeyProcessor_ClearChanged();
+    }
+
+}
+
+static void _SendSystemReport(USBD_HandleTypeDef *pdev)
+{
+    if (!KeyProcessor_SystemKeyChanged()) return;
+
+    if (!USBD_HID_KeyboardReady(pdev)) return;
+
+    s_curr_sys.report_id = HID_REPORT_ID_SYSTEM;
+    s_curr_sys.usage     = KeyProcessor_GetSystemKey();
+
+    if (memcmp(&s_curr_sys, &s_last_sys, sizeof(HID_SystemReport_t)) == 0) {
+        KeyProcessor_ClearSystemKeyChanged();
+        return;
+    }
+
+    USBD_StatusTypeDef st = USBD_HID_SendSystemReport(pdev, s_curr_sys.usage);
+    if (st == USBD_OK) {
+        memcpy(&s_last_sys, &s_curr_sys, sizeof(HID_SystemReport_t));
+        KeyProcessor_ClearSystemKeyChanged();
+    }
+
 }
 
 void HIDReporter_SendIfChanged(USBD_HandleTypeDef *pdev)
 {
-    if (!KeyProcessor_HasChanged()) return;
-
-    const KeyProcessorState_t *state = KeyProcessor_GetState();
-
-    s_current_report.report_id = HID_REPORT_ID_KEYBOARD;
-    s_current_report.modifiers = state->modifiers;
-    s_current_report.reserved  = 0x00U;
-
-    if (state->rollover_overflow) {
-
-        memset(s_current_report.keycodes, HID_ERROR_ROLLOVER, 6);
-    } else {
-
-        memset(s_current_report.keycodes, 0, 6);
-        uint8_t count = (state->pressed_count > 6) ? 6 : state->pressed_count;
-        memcpy(s_current_report.keycodes, state->pressed_keys, count);
-    }
-
-    if (memcmp(&s_current_report, &s_last_report,
-               sizeof(HID_KeyboardReport_t)) != 0)
-    {
-        USBD_StatusTypeDef status =
-            USBD_HID_SendKeyboardReport(pdev, &s_current_report);
-
-        if (status == USBD_OK) {
-            memcpy(&s_last_report, &s_current_report,
-                   sizeof(HID_KeyboardReport_t));
-        }
-
-    }
-
-    KeyProcessor_ClearChanged();
+    _SendKeyboardReport(pdev);
+    _SendSystemReport(pdev);
 }
 ```
 
@@ -1446,20 +2021,22 @@ IWDG_HandleTypeDef hiwdg;
 void MX_IWDG_Init(void)
 {
 
-  hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_64;
-  hiwdg.Init.Reload = 2000;
-  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    hiwdg.Instance       = IWDG;
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
+    hiwdg.Init.Reload    = 4000U;
 
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK) {
+        Error_Handler();
+    }
 }
 ```
 
 ### `Core\Src\key_processor.c`
 ```c
 #include "key_processor.h"
+#include "flash_keymap.h"
+#include "macro_engine.h"
+#include "tap_hold.h"
 #include "default_keymap.h"
 #include <string.h>
 
@@ -1470,39 +2047,105 @@ static const keycode_t *s_keymap_right[MAX_LAYERS];
 
 static keycode_t s_active_local[MATRIX_ROWS * MATRIX_COLS];
 static keycode_t s_active_remote[MATRIX_ROWS * MATRIX_COLS];
+static uint8_t   s_overflow_count;
 
-static uint8_t s_overflow_count;
+static uint8_t s_system_key_bitmap;
+static bool    s_system_key_changed;
+
+#define OVERFLOW_POOL_SIZE  8U
+static uint8_t s_overflow_pool[OVERFLOW_POOL_SIZE];
+static uint8_t s_overflow_pool_count;
+
+static uint8_t s_num_active_layers;
+
+#define TH_RESOLVE_MAP_SIZE   (MATRIX_ROWS * MATRIX_COLS)
+static keycode_t s_th_resolved_kc[TH_RESOLVE_MAP_SIZE];
+
+typedef enum {
+    TT_IDLE = 0,
+    TT_PRESSED,
+    TT_MOMENTARY,
+    TT_WAIT_2ND,
+    TT_TOGGLED,
+    TT_TOGGLE_ACTIVE,
+} TT_State_t;
+
+typedef struct {
+    TT_State_t  state;
+    uint8_t     target_layer;
+    uint32_t    press_tick;
+    uint32_t    release_tick;
+    uint8_t     key_index;
+} TT_Context_t;
+
+#define TT_MAX_CONTEXTS     4U
+#define TT_TAPPING_TERM_MS  200U
+
+static TT_Context_t s_tt[TT_MAX_CONTEXTS];
+
+static TT_Context_t *_TT_FindByLayer(uint8_t layer);
+static TT_Context_t *_TT_FindByKeyIndex(uint8_t key_index);
+static TT_Context_t *_TT_Alloc(void);
+static void          _TT_Free(TT_Context_t *ctx);
+static void          _TT_LayerOn(uint8_t layer);
+static void          _TT_LayerOff(uint8_t layer);
 
 static keycode_t _ResolveKeycodeLeft(uint8_t row, uint8_t col);
 static keycode_t _ResolveKeycodeRight(uint8_t row, uint8_t col);
+static void      _ProcessKeycode(keycode_t kc, KeyState_t state, bool is_remote,
+                                  uint8_t key_index);
 static void      _HandleBasicKey(keycode_t kc, KeyState_t state);
-static void      _HandleLayerAction(keycode_t kc, KeyState_t state);
+static void      _HandleLayerAction(keycode_t kc, KeyState_t state, uint8_t key_index);
+static void      _HandleMacro(keycode_t kc, KeyState_t state);
+static void      _HandleSystemKey(keycode_t kc, KeyState_t state);
+static void      _HandleTapHold(keycode_t kc, KeyState_t state,
+                                 uint8_t key_index, bool is_remote);
 static void      _AddPressedKey(uint8_t hid_code);
 static void      _RemovePressedKey(uint8_t hid_code);
-static void      _UpdateOverflowFlag(void);
+static void      _UpdateLayerCache(void);
+static void      _UpdateActiveLayer(void);
+static void      _TapHoldCallback(keycode_t kc, KeyState_t state, bool is_remote);
+
+static inline uint8_t _SystemUsageToBitmap(uint8_t usage)
+{
+    if (usage >= 0x81U && usage <= 0x83U) {
+        return (uint8_t)(1U << (usage - 0x81U));
+    }
+    return 0U;
+}
 
 void KeyProcessor_Init(void)
 {
     memset(&s_state, 0, sizeof(KeyProcessorState_t));
     memset(s_active_local,  0, sizeof(s_active_local));
     memset(s_active_remote, 0, sizeof(s_active_remote));
+    memset(s_overflow_pool, 0, sizeof(s_overflow_pool));
+    memset(s_th_resolved_kc, 0, sizeof(s_th_resolved_kc));
+    memset(s_tt, 0, sizeof(s_tt));
 
-    s_overflow_count = 0;
+    s_overflow_count      = 0;
+    s_overflow_pool_count = 0;
+    s_system_key_bitmap   = 0;
+    s_system_key_changed  = false;
 
-    s_keymap_left[0] = &KEYMAP_LEFT_LAYER0[0][0];
-    s_keymap_left[1] = &KEYMAP_LEFT_LAYER1[0][0];
-    for (int i = 2; i < MAX_LAYERS; i++) {
-        s_keymap_left[i] = NULL;
-    }
-
-    s_keymap_right[0] = &KEYMAP_RIGHT_LAYER0[0][0];
-    s_keymap_right[1] = &KEYMAP_RIGHT_LAYER1[0][0];
-    for (int i = 2; i < MAX_LAYERS; i++) {
+    for (int i = 0; i < MAX_LAYERS; i++) {
+        s_keymap_left[i]  = NULL;
         s_keymap_right[i] = NULL;
     }
 
+    for (uint8_t layer = 0U; layer < NUM_KEYMAP_LAYERS; layer++) {
+        s_keymap_left[layer]  = FlashKeymap_GetLeft(layer);
+        s_keymap_right[layer] = FlashKeymap_GetRight(layer);
+    }
+
     s_state.active_layer = 0;
-    s_state.layer_state  = 0x01;
+    s_state.layer_state  = 0x01U;
+
+    _UpdateLayerCache();
+
+    MacroEngine_Init();
+    TapHold_Init();
+    TapHold_RegisterCallback(_TapHoldCallback);
 }
 
 void KeyProcessor_HandleLocalEvent(const KeyEvent_t *event)
@@ -1510,28 +2153,38 @@ void KeyProcessor_HandleLocalEvent(const KeyEvent_t *event)
     if (event == NULL) return;
     if (event->row >= MATRIX_ROWS || event->col >= MATRIX_COLS) return;
 
-    uint8_t key_index = event->row * MATRIX_COLS + event->col;
+    uint8_t   key_index = event->row * MATRIX_COLS + event->col;
     keycode_t kc;
 
     if (event->state == KEY_STATE_PRESSED) {
+        if (!TapHold_IsPending(key_index)) {
+            TapHold_NotifyOtherKeyPress();
+        }
+
         kc = _ResolveKeycodeLeft(event->row, event->col);
         s_active_local[key_index] = kc;
+
+        if (kc == KC_NO || kc == KC_TRANSPARENT) return;
+        _ProcessKeycode(kc, KEY_STATE_PRESSED, false, key_index);
+
     } else {
         kc = s_active_local[key_index];
         s_active_local[key_index] = KC_NO;
-    }
 
-    if (kc == KC_NO || kc == KC_TRANSPARENT) return;
+        if (kc == KC_NO || kc == KC_TRANSPARENT) return;
 
-    switch (KC_TYPE(kc)) {
-    case KC_TYPE_BASIC:
-        _HandleBasicKey(kc, event->state);
-        break;
-    case KC_TYPE_LAYER:
-        _HandleLayerAction(kc, event->state);
-        break;
-    default:
-        break;
+        if (KC_TYPE(kc) == KC_TYPE_TAP_HOLD) {
+            if (TapHold_HandleRelease(key_index)) return;
+            if (key_index < TH_RESOLVE_MAP_SIZE &&
+                s_th_resolved_kc[key_index] != KC_NO) {
+                keycode_t resolved = s_th_resolved_kc[key_index];
+                s_th_resolved_kc[key_index] = KC_NO;
+                _ProcessKeycode(resolved, KEY_STATE_RELEASED, false, key_index);
+            }
+            return;
+        }
+
+        _ProcessKeycode(kc, KEY_STATE_RELEASED, false, key_index);
     }
 }
 
@@ -1540,35 +2193,48 @@ void KeyProcessor_HandleRemoteEvent(const KeyEvent_t *event)
     if (event == NULL) return;
     if (event->row >= MATRIX_ROWS || event->col >= MATRIX_COLS) return;
 
-    uint8_t key_index = event->row * MATRIX_COLS + event->col;
+    uint8_t   key_index = event->row * MATRIX_COLS + event->col;
     keycode_t kc;
 
     if (event->state == KEY_STATE_PRESSED) {
+        if (!TapHold_IsPending(key_index)) {
+            TapHold_NotifyOtherKeyPress();
+        }
+
         kc = _ResolveKeycodeRight(event->row, event->col);
         s_active_remote[key_index] = kc;
+
+        if (kc == KC_NO || kc == KC_TRANSPARENT) return;
+        _ProcessKeycode(kc, KEY_STATE_PRESSED, true, key_index);
+
     } else {
         kc = s_active_remote[key_index];
         s_active_remote[key_index] = KC_NO;
-    }
 
-    if (kc == KC_NO || kc == KC_TRANSPARENT) return;
+        if (kc == KC_NO || kc == KC_TRANSPARENT) return;
 
-    switch (KC_TYPE(kc)) {
-    case KC_TYPE_BASIC:
-        _HandleBasicKey(kc, event->state);
-        break;
-    case KC_TYPE_LAYER:
-        _HandleLayerAction(kc, event->state);
-        break;
-    default:
-        break;
+        if (KC_TYPE(kc) == KC_TYPE_TAP_HOLD) {
+            if (TapHold_HandleRelease(key_index)) return;
+            if (key_index < TH_RESOLVE_MAP_SIZE &&
+                s_th_resolved_kc[key_index] != KC_NO) {
+                keycode_t resolved = s_th_resolved_kc[key_index];
+                s_th_resolved_kc[key_index] = KC_NO;
+                _ProcessKeycode(resolved, KEY_STATE_RELEASED, true, key_index);
+            }
+            return;
+        }
+
+        _ProcessKeycode(kc, KEY_STATE_RELEASED, true, key_index);
     }
 }
 
-uint8_t KeyProcessor_GetModifiers(void)
+void KeyProcessor_InjectKeycode(keycode_t kc, KeyState_t state)
 {
-    return s_state.modifiers;
+    if (kc == KC_NO || kc == KC_TRANSPARENT) return;
+    _ProcessKeycode(kc, state, false, 0xFFU);
 }
+
+uint8_t KeyProcessor_GetModifiers(void) { return s_state.modifiers; }
 
 uint8_t KeyProcessor_GetPressedKeys(uint8_t *keys_out, uint8_t max_keys)
 {
@@ -1578,47 +2244,113 @@ uint8_t KeyProcessor_GetPressedKeys(uint8_t *keys_out, uint8_t max_keys)
     return count;
 }
 
-bool KeyProcessor_HasChanged(void)
+bool KeyProcessor_HasChanged(void)   { return s_state.changed; }
+void KeyProcessor_ClearChanged(void) { s_state.changed = false; }
+
+const KeyProcessorState_t *KeyProcessor_GetState(void) { return &s_state; }
+
+uint8_t KeyProcessor_GetSystemKey(void)          { return s_system_key_bitmap; }
+bool    KeyProcessor_SystemKeyChanged(void)      { return s_system_key_changed; }
+void    KeyProcessor_ClearSystemKeyChanged(void) { s_system_key_changed = false; }
+
+void KeyProcessor_TT_Process(void)
 {
-    return s_state.changed;
+    uint32_t now = HAL_GetTick();
+
+    for (uint8_t i = 0U; i < TT_MAX_CONTEXTS; i++) {
+        TT_Context_t *ctx = &s_tt[i];
+
+        switch (ctx->state) {
+        case TT_PRESSED:
+
+            if ((now - ctx->press_tick) >= TT_TAPPING_TERM_MS) {
+                ctx->state = TT_MOMENTARY;
+
+            }
+            break;
+
+        case TT_WAIT_2ND:
+
+            if ((now - ctx->release_tick) >= TT_TAPPING_TERM_MS) {
+                _TT_LayerOff(ctx->target_layer);
+                _TT_Free(ctx);
+            }
+            break;
+
+        default:
+            break;
+        }
+    }
 }
 
-void KeyProcessor_ClearChanged(void)
+static void _UpdateLayerCache(void)
 {
-    s_state.changed = false;
+    s_num_active_layers = 0U;
+    for (uint8_t i = 0U; i < MAX_LAYERS; i++) {
+        if (s_keymap_left[i] != NULL || s_keymap_right[i] != NULL) {
+            s_num_active_layers = i + 1U;
+        }
+    }
+    if (s_num_active_layers == 0U) s_num_active_layers = 1U;
 }
 
-const KeyProcessorState_t* KeyProcessor_GetState(void)
+static void _UpdateActiveLayer(void)
 {
-    return &s_state;
+    s_state.active_layer = 0U;
+    for (int layer = (int)s_num_active_layers - 1; layer > 0; layer--) {
+        if (s_state.layer_state & (1UL << layer)) {
+            s_state.active_layer = (uint8_t)layer;
+            break;
+        }
+    }
 }
 
 static keycode_t _ResolveKeycodeLeft(uint8_t row, uint8_t col)
 {
-    for (int layer = MAX_LAYERS - 1; layer >= 0; layer--) {
+    for (int layer = (int)s_num_active_layers - 1; layer >= 0; layer--) {
         if (!(s_state.layer_state & (1UL << layer))) continue;
         if (s_keymap_left[layer] == NULL) continue;
-
         keycode_t kc = s_keymap_left[layer][row * MATRIX_COLS + col];
-        if (kc != KC_TRANSPARENT) {
-            return kc;
-        }
+        if (kc != KC_TRANSPARENT) return kc;
     }
     return KC_NO;
 }
 
 static keycode_t _ResolveKeycodeRight(uint8_t row, uint8_t col)
 {
-    for (int layer = MAX_LAYERS - 1; layer >= 0; layer--) {
+    for (int layer = (int)s_num_active_layers - 1; layer >= 0; layer--) {
         if (!(s_state.layer_state & (1UL << layer))) continue;
         if (s_keymap_right[layer] == NULL) continue;
-
         keycode_t kc = s_keymap_right[layer][row * MATRIX_COLS + col];
-        if (kc != KC_TRANSPARENT) {
-            return kc;
-        }
+        if (kc != KC_TRANSPARENT) return kc;
     }
     return KC_NO;
+}
+
+static void _ProcessKeycode(keycode_t kc, KeyState_t state,
+                             bool is_remote, uint8_t key_index)
+{
+    uint8_t type = KC_TYPE(kc);
+
+    switch (type) {
+    case KC_TYPE_BASIC:
+        _HandleBasicKey(kc, state);
+        break;
+    case KC_TYPE_LAYER:
+        _HandleLayerAction(kc, state, key_index);
+        break;
+    case KC_TYPE_MACRO:
+        _HandleMacro(kc, state);
+        break;
+    case KC_TYPE_SYSTEM:
+        _HandleSystemKey(kc, state);
+        break;
+    case KC_TYPE_TAP_HOLD:
+        _HandleTapHold(kc, state, key_index, is_remote);
+        break;
+    default:
+        break;
+    }
 }
 
 static void _HandleBasicKey(keycode_t kc, KeyState_t state)
@@ -1627,117 +2359,301 @@ static void _HandleBasicKey(keycode_t kc, KeyState_t state)
 
     if (IS_MODIFIER(kc)) {
         uint8_t mod_bit = MODIFIER_BIT(kc);
-        if (state == KEY_STATE_PRESSED) {
-            s_state.modifiers |= mod_bit;
-        } else {
-            s_state.modifiers &= ~mod_bit;
-        }
+        if (state == KEY_STATE_PRESSED)  s_state.modifiers |= mod_bit;
+        else                             s_state.modifiers &= ~mod_bit;
         s_state.changed = true;
-
     } else {
-        if (state == KEY_STATE_PRESSED) {
-            _AddPressedKey((uint8_t)hid_code);
-        } else {
-            _RemovePressedKey((uint8_t)hid_code);
-        }
+        if (state == KEY_STATE_PRESSED)  _AddPressedKey((uint8_t)hid_code);
+        else                             _RemovePressedKey((uint8_t)hid_code);
     }
 }
 
-static void _HandleLayerAction(keycode_t kc, KeyState_t state)
+static void _HandleLayerAction(keycode_t kc, KeyState_t state, uint8_t key_index)
 {
-    uint8_t action       = (KC_DATA(kc) >> 8) & 0x0F;
-    uint8_t target_layer = (KC_DATA(kc) >> 4) & 0x0F;
-
+    uint8_t action       = LAYER_ACTION(kc);
+    uint8_t target_layer = LAYER_TARGET(kc);
     if (target_layer >= MAX_LAYERS) return;
 
     switch (action) {
-    case 0x0:
-        if (state == KEY_STATE_PRESSED) {
-            s_state.layer_state |= (1UL << target_layer);
-        } else {
-            s_state.layer_state &= ~(1UL << target_layer);
-        }
 
-        s_state.layer_state |= 0x01;
+    case LAYER_ACTION_MO:
+        if (state == KEY_STATE_PRESSED)
+            s_state.layer_state |= (1UL << target_layer);
+        else
+            s_state.layer_state &= ~(1UL << target_layer);
+        s_state.layer_state |= 0x01U;
         break;
 
-    case 0x1:
+    case LAYER_ACTION_TG:
         if (state == KEY_STATE_PRESSED) {
             s_state.layer_state ^= (1UL << target_layer);
-            s_state.layer_state |= 0x01;
+            s_state.layer_state |= 0x01U;
         }
         break;
 
-    case 0x2:
-        if (state == KEY_STATE_PRESSED) {
+    case LAYER_ACTION_DF:
+        if (state == KEY_STATE_PRESSED)
             s_state.layer_state = (1UL << target_layer);
+        break;
+
+    case LAYER_ACTION_TT:
+    {
+        if (state == KEY_STATE_PRESSED) {
+
+            TT_Context_t *existing = _TT_FindByLayer(target_layer);
+
+            if (existing != NULL && existing->state == TT_TOGGLE_ACTIVE) {
+
+                _TT_LayerOff(target_layer);
+                _TT_Free(existing);
+                break;
+            }
+
+            if (existing != NULL && existing->state == TT_WAIT_2ND) {
+
+                existing->state     = TT_TOGGLED;
+                existing->key_index = key_index;
+
+                break;
+            }
+
+            TT_Context_t *ctx = _TT_Alloc();
+            if (ctx == NULL) {
+
+                s_state.layer_state |= (1UL << target_layer);
+                s_state.layer_state |= 0x01U;
+                break;
+            }
+
+            ctx->state        = TT_PRESSED;
+            ctx->target_layer = target_layer;
+            ctx->press_tick   = HAL_GetTick();
+            ctx->key_index    = key_index;
+
+            _TT_LayerOn(target_layer);
+
+        } else {
+
+            TT_Context_t *ctx = _TT_FindByKeyIndex(key_index);
+            if (ctx == NULL) {
+
+                s_state.layer_state &= ~(1UL << target_layer);
+                s_state.layer_state |= 0x01U;
+                break;
+            }
+
+            switch (ctx->state) {
+
+            case TT_PRESSED:
+            {
+
+                uint32_t held = HAL_GetTick() - ctx->press_tick;
+                if (held < TT_TAPPING_TERM_MS) {
+
+                    ctx->state        = TT_WAIT_2ND;
+                    ctx->release_tick = HAL_GetTick();
+
+                } else {
+
+                    _TT_LayerOff(target_layer);
+                    _TT_Free(ctx);
+                }
+                break;
+            }
+
+            case TT_MOMENTARY:
+
+                _TT_LayerOff(target_layer);
+                _TT_Free(ctx);
+                break;
+
+            case TT_TOGGLED:
+
+                ctx->state = TT_TOGGLE_ACTIVE;
+                break;
+
+            case TT_TOGGLE_ACTIVE:
+
+                break;
+
+            case TT_WAIT_2ND:
+
+                break;
+
+            default:
+                _TT_Free(ctx);
+                break;
+            }
         }
         break;
+    }
 
     default:
         break;
+    }
+
+    _UpdateActiveLayer();
+}
+
+static void _HandleMacro(keycode_t kc, KeyState_t state)
+{
+    if (state != KEY_STATE_PRESSED) return;
+    uint8_t macro_id = (uint8_t)(KC_DATA(kc) & 0xFFU);
+    MacroEngine_Trigger(macro_id);
+}
+
+static void _HandleSystemKey(keycode_t kc, KeyState_t state)
+{
+    uint8_t usage = (uint8_t)(KC_DATA(kc) & 0xFFU);
+
+    if (state == KEY_STATE_PRESSED) {
+        s_system_key_bitmap |= _SystemUsageToBitmap(usage);
+    } else {
+        s_system_key_bitmap &= ~_SystemUsageToBitmap(usage);
+    }
+
+    s_system_key_changed = true;
+    s_state.changed      = true;
+}
+
+static void _HandleTapHold(keycode_t kc, KeyState_t state,
+                            uint8_t key_index, bool is_remote)
+{
+    (void)is_remote;
+    uint8_t th_id = (uint8_t)(KC_DATA(kc) & 0xFFU);
+    if (state == KEY_STATE_PRESSED) {
+        TapHold_HandlePress(key_index, th_id, is_remote);
     }
 }
 
 static void _AddPressedKey(uint8_t hid_code)
 {
-
-    for (uint8_t i = 0; i < s_state.pressed_count && i < 6; i++) {
+    for (uint8_t i = 0U; i < s_state.pressed_count; i++) {
         if (s_state.pressed_keys[i] == hid_code) return;
     }
-
-    if (s_state.pressed_count < 6) {
-        s_state.pressed_keys[s_state.pressed_count] = hid_code;
-        s_state.pressed_count++;
-    } else {
-
-        s_overflow_count++;
+    for (uint8_t i = 0U; i < s_overflow_pool_count; i++) {
+        if (s_overflow_pool[i] == hid_code) return;
     }
 
-    _UpdateOverflowFlag();
+    if (s_state.pressed_count < 6U) {
+        s_state.pressed_keys[s_state.pressed_count++] = hid_code;
+    } else {
+        if (s_overflow_pool_count < OVERFLOW_POOL_SIZE) {
+            s_overflow_pool[s_overflow_pool_count++] = hid_code;
+            s_overflow_count++;
+        }
+    }
+
+    s_state.rollover_overflow = (s_overflow_count > 0U);
     s_state.changed = true;
 }
 
 static void _RemovePressedKey(uint8_t hid_code)
 {
-
-    for (uint8_t i = 0; i < s_state.pressed_count; i++) {
+    for (uint8_t i = 0U; i < s_state.pressed_count; i++) {
         if (s_state.pressed_keys[i] == hid_code) {
-
-            for (uint8_t j = i; j < s_state.pressed_count - 1; j++) {
-                s_state.pressed_keys[j] = s_state.pressed_keys[j + 1];
+            for (uint8_t j = i; j < s_state.pressed_count - 1U; j++) {
+                s_state.pressed_keys[j] = s_state.pressed_keys[j + 1U];
             }
             s_state.pressed_count--;
-            s_state.pressed_keys[s_state.pressed_count] = 0;
+            s_state.pressed_keys[s_state.pressed_count] = 0U;
 
-            if (s_overflow_count > 0) {
+            if (s_overflow_pool_count > 0U) {
+                uint8_t promoted = s_overflow_pool[0];
+                for (uint8_t k = 0U; k < s_overflow_pool_count - 1U; k++) {
+                    s_overflow_pool[k] = s_overflow_pool[k + 1U];
+                }
+                s_overflow_pool_count--;
                 s_overflow_count--;
+                s_state.pressed_keys[s_state.pressed_count++] = promoted;
             }
 
-            _UpdateOverflowFlag();
+            s_state.rollover_overflow = (s_overflow_count > 0U);
             s_state.changed = true;
             return;
         }
     }
 
-    if (s_overflow_count > 0) {
-        s_overflow_count--;
-        _UpdateOverflowFlag();
-        s_state.changed = true;
+    for (uint8_t i = 0U; i < s_overflow_pool_count; i++) {
+        if (s_overflow_pool[i] == hid_code) {
+            for (uint8_t k = i; k < s_overflow_pool_count - 1U; k++) {
+                s_overflow_pool[k] = s_overflow_pool[k + 1U];
+            }
+            s_overflow_pool_count--;
+            s_overflow_count--;
+            s_state.rollover_overflow = (s_overflow_count > 0U);
+            s_state.changed = true;
+            return;
+        }
     }
 }
 
-static void _UpdateOverflowFlag(void)
+static void _TapHoldCallback(keycode_t kc, KeyState_t state, bool is_remote)
 {
-    s_state.rollover_overflow = (s_overflow_count > 0);
-
-    s_state.active_layer = 0;
-    for (int layer = MAX_LAYERS - 1; layer > 0; layer--) {
-        if (s_state.layer_state & (1UL << layer)) {
-            s_state.active_layer = (uint8_t)layer;
-            break;
+    if (state == KEY_STATE_PRESSED) {
+        uint8_t ki = TapHold_GetPendingKeyIndex();
+        if (ki < TH_RESOLVE_MAP_SIZE) {
+            s_th_resolved_kc[ki] = kc;
+        }
+    } else {
+        uint8_t ki = TapHold_GetPendingKeyIndex();
+        if (ki < TH_RESOLVE_MAP_SIZE) {
+            s_th_resolved_kc[ki] = KC_NO;
         }
     }
+
+    _ProcessKeycode(kc, state, is_remote, 0xFFU);
+}
+
+static TT_Context_t *_TT_FindByLayer(uint8_t layer)
+{
+    for (uint8_t i = 0U; i < TT_MAX_CONTEXTS; i++) {
+        if (s_tt[i].state != TT_IDLE && s_tt[i].target_layer == layer) {
+            return &s_tt[i];
+        }
+    }
+    return NULL;
+}
+
+static TT_Context_t *_TT_FindByKeyIndex(uint8_t key_index)
+{
+    for (uint8_t i = 0U; i < TT_MAX_CONTEXTS; i++) {
+        if (s_tt[i].state != TT_IDLE && s_tt[i].key_index == key_index) {
+            return &s_tt[i];
+        }
+    }
+    return NULL;
+}
+
+static TT_Context_t *_TT_Alloc(void)
+{
+    for (uint8_t i = 0U; i < TT_MAX_CONTEXTS; i++) {
+        if (s_tt[i].state == TT_IDLE) {
+            return &s_tt[i];
+        }
+    }
+    return NULL;
+}
+
+static void _TT_Free(TT_Context_t *ctx)
+{
+    if (ctx != NULL) {
+        memset(ctx, 0, sizeof(TT_Context_t));
+    }
+}
+
+static void _TT_LayerOn(uint8_t layer)
+{
+    s_state.layer_state |= (1UL << layer);
+    s_state.layer_state |= 0x01U;
+    _UpdateActiveLayer();
+}
+
+static void _TT_LayerOff(uint8_t layer)
+{
+    s_state.layer_state &= ~(1UL << layer);
+    s_state.layer_state |= 0x01U;
+    _UpdateActiveLayer();
 }
 ```
 
@@ -1850,6 +2766,188 @@ void LedManager_Update(void)
 }
 ```
 
+### `Core\Src\macro_engine.c`
+```c
+#include "macro_engine.h"
+#include "key_processor.h"
+#include "stm32f4xx_hal.h"
+#include <string.h>
+
+static Macro_t s_macros[MAX_MACROS];
+
+typedef struct {
+    MacroExecState_t    state;
+    uint8_t             macro_id;
+    uint8_t             step_idx;
+
+    uint32_t            delay_start_tick;
+    uint32_t            delay_duration_ms;
+    bool                tap_release_pending;
+} MacroExecContext_t;
+
+static MacroExecContext_t s_exec;
+
+static void _InjectKey(keycode_t kc, KeyState_t state);
+
+void MacroEngine_Init(void)
+{
+    memset(s_macros, 0, sizeof(s_macros));
+    memset(&s_exec,  0, sizeof(s_exec));
+    s_exec.state = MACRO_EXEC_IDLE;
+}
+
+void MacroEngine_Trigger(uint8_t macro_id)
+{
+    if (macro_id >= MAX_MACROS) return;
+    if (s_macros[macro_id].count == 0U) return;
+
+    s_exec.macro_id              = macro_id;
+    s_exec.step_idx              = 0U;
+    s_exec.state                 = MACRO_EXEC_RUNNING;
+    s_exec.tap_release_pending   = false;
+    s_exec.delay_duration_ms     = 0U;
+    s_exec.delay_start_tick      = 0U;
+}
+
+void MacroEngine_Process(void)
+{
+    if (s_exec.state == MACRO_EXEC_IDLE) return;
+
+    Macro_t *macro = &s_macros[s_exec.macro_id];
+
+    if (s_exec.state == MACRO_EXEC_DELAY) {
+        uint32_t elapsed = HAL_GetTick() - s_exec.delay_start_tick;
+        if (elapsed < s_exec.delay_duration_ms) {
+            return;
+        }
+
+        s_exec.step_idx++;
+        s_exec.state = MACRO_EXEC_RUNNING;
+    }
+
+    if (s_exec.tap_release_pending) {
+
+        if (s_exec.step_idx > 0U) {
+            const MacroStep_t *prev =
+                &macro->steps[s_exec.step_idx - 1U];
+            keycode_t kc = ((uint16_t)prev->kc_h << 8U) | prev->kc_l;
+            _InjectKey(kc, KEY_STATE_RELEASED);
+        }
+        s_exec.tap_release_pending = false;
+
+    }
+
+    while (s_exec.step_idx < macro->count) {
+        const MacroStep_t *step = &macro->steps[s_exec.step_idx];
+        keycode_t kc = ((uint16_t)step->kc_h << 8U) | step->kc_l;
+
+        switch ((MacroStepType_t)step->type) {
+
+        case MACRO_STEP_END:
+            s_exec.state = MACRO_EXEC_IDLE;
+            return;
+
+        case MACRO_STEP_PRESS:
+            _InjectKey(kc, KEY_STATE_PRESSED);
+            s_exec.step_idx++;
+            break;
+
+        case MACRO_STEP_RELEASE:
+            _InjectKey(kc, KEY_STATE_RELEASED);
+            s_exec.step_idx++;
+            break;
+
+        case MACRO_STEP_TAP:
+            _InjectKey(kc, KEY_STATE_PRESSED);
+            s_exec.step_idx++;
+            s_exec.tap_release_pending = true;
+            return;
+
+        case MACRO_STEP_DELAY:
+
+            if (step->delay_ms > 0U) {
+                s_exec.state            = MACRO_EXEC_DELAY;
+                s_exec.delay_start_tick = HAL_GetTick();
+                s_exec.delay_duration_ms = (uint32_t)step->delay_ms;
+                return;
+            }
+
+            s_exec.step_idx++;
+            break;
+
+        default:
+            s_exec.step_idx++;
+            break;
+        }
+    }
+
+    s_exec.state = MACRO_EXEC_IDLE;
+}
+
+bool MacroEngine_IsBusy(void)
+{
+    return (s_exec.state != MACRO_EXEC_IDLE);
+}
+
+bool MacroEngine_SetMacro(uint8_t macro_id,
+                           const MacroStep_t *steps, uint8_t step_count)
+{
+    if (macro_id >= MAX_MACROS) return false;
+    if (step_count > MAX_MACRO_STEPS) return false;
+    if (steps == NULL && step_count > 0U) return false;
+
+    Macro_t *m = &s_macros[macro_id];
+    memset(m, 0, sizeof(Macro_t));
+    if (step_count > 0U) {
+        memcpy(m->steps, steps, step_count * sizeof(MacroStep_t));
+    }
+    m->count = step_count;
+    return true;
+}
+
+bool MacroEngine_GetMacro(uint8_t macro_id,
+                           MacroStep_t *steps_out, uint8_t *count_out)
+{
+    if (macro_id >= MAX_MACROS) return false;
+    if (steps_out == NULL || count_out == NULL) return false;
+
+    const Macro_t *m = &s_macros[macro_id];
+    *count_out = m->count;
+    memcpy(steps_out, m->steps, m->count * sizeof(MacroStep_t));
+    return true;
+}
+
+void MacroEngine_LoadFromFlash(const uint8_t *flash_data, uint16_t size)
+{
+    if (flash_data == NULL) return;
+    uint16_t max = (uint16_t)sizeof(s_macros);
+    if (size > max) size = max;
+    memcpy(s_macros, flash_data, size);
+
+    for (uint8_t i = 0U; i < MAX_MACROS; i++) {
+        s_macros[i].count = 0U;
+        for (uint8_t j = 0U; j < MAX_MACRO_STEPS; j++) {
+            if (s_macros[i].steps[j].type == (uint8_t)MACRO_STEP_END) break;
+            s_macros[i].count++;
+        }
+    }
+}
+
+uint16_t MacroEngine_SerializeToBuffer(uint8_t *buf, uint16_t buf_size)
+{
+    uint16_t needed = (uint16_t)(MAX_MACROS * MAX_MACRO_STEPS
+                                  * sizeof(MacroStep_t));
+    if (buf_size < needed) return 0U;
+    memcpy(buf, s_macros, needed);
+    return needed;
+}
+
+static void _InjectKey(keycode_t kc, KeyState_t state)
+{
+    KeyProcessor_InjectKeycode(kc, state);
+}
+```
+
 ### `Core\Src\main.c`
 ```c
 #include "main.h"
@@ -1867,12 +2965,17 @@ void LedManager_Update(void)
 #include "hid_reporter.h"
 #include "split_comm.h"
 #include "led_manager.h"
+#include "flash_keymap.h"
+#include "macro_engine.h"
+#include "tap_hold.h"
+#include "raw_hid.h"
 #include "iwdg.h"
 
 uint8_t g_keyboard_role = KEYBOARD_ROLE_UNKNOWN;
 
 void SystemClock_Config(void);
 static void Boot_IndicateRole(void);
+static void USB_TryRemoteWakeup(void);
 
 uint8_t Role_Detect(void)
 {
@@ -1881,25 +2984,16 @@ uint8_t Role_Detect(void)
 
     uint8_t vbus_count = 0U;
     for (uint8_t i = 0U; i < VBUS_DETECT_SAMPLES; i++) {
-        if (USB_OTG_FS->GOTGCTL & USB_OTG_GOTGCTL_BSVLD) {
-            vbus_count++;
-        }
+        if (USB_OTG_FS->GOTGCTL & USB_OTG_GOTGCTL_BSVLD) vbus_count++;
         HAL_Delay(1U);
     }
 
     uint8_t role;
-    if (vbus_count == VBUS_DETECT_SAMPLES) {
-        role = KEYBOARD_ROLE_MASTER;
-    } else if (vbus_count == 0U) {
-        role = KEYBOARD_ROLE_SLAVE;
-    } else {
-        role = KEYBOARD_ROLE_FALLBACK;
-    }
+    if (vbus_count == VBUS_DETECT_SAMPLES)     role = KEYBOARD_ROLE_MASTER;
+    else if (vbus_count == 0U)                 role = KEYBOARD_ROLE_SLAVE;
+    else                                        role = KEYBOARD_ROLE_FALLBACK;
 
-    if (role == KEYBOARD_ROLE_SLAVE) {
-        __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
-    }
-
+    if (role == KEYBOARD_ROLE_SLAVE) __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
     return role;
 }
 
@@ -1907,6 +3001,7 @@ int main(void)
 {
     HAL_Init();
     SystemClock_Config();
+    SystemCoreClockUpdate();
 
     g_keyboard_role = Role_Detect();
 
@@ -1917,8 +3012,13 @@ int main(void)
 
     Matrix_Init();
     LedManager_Init();
-    SplitComm_Init();
 
+    if (IS_MASTER()) {
+        FlashKeymap_Init();
+    }
+
+    SplitComm_Init();
+    RawHID_Init();
     MX_IWDG_Init();
 
     if (IS_MASTER()) {
@@ -1937,37 +3037,45 @@ int main(void)
         SplitComm_Process();
 
         if (IS_MASTER()) {
+            bool usb_suspended = USBD_HID_IsSuspended(&hUsbDeviceFS);
 
             KeyEvent_t event;
             while (Matrix_GetEvent(&event)) {
-                KeyProcessor_HandleLocalEvent(&event);
+                if (usb_suspended) {
+                    USB_TryRemoteWakeup();
+                } else {
+                    KeyProcessor_HandleLocalEvent(&event);
+                }
             }
 
             KeyEvent_t remote_event;
             while (SplitComm_GetRemoteEvent(&remote_event)) {
-                KeyProcessor_HandleRemoteEvent(&remote_event);
-            }
-
-            if (USBD_HID_KeyboardReady(&hUsbDeviceFS)) {
-                HIDReporter_SendIfChanged(&hUsbDeviceFS);
-            }
-
-            uint8_t raw_buf[HID_RAW_EP_SIZE];
-            if (USBD_HID_GetRawData(raw_buf)) {
-                (void)raw_buf;
-            }
-
-            if (SplitComm_GetStatus() == SPLIT_CONNECTED) {
-                if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
-                    LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
+                if (usb_suspended) {
+                    USB_TryRemoteWakeup();
+                } else {
+                    KeyProcessor_HandleRemoteEvent(&remote_event);
                 }
+            }
+
+            MacroEngine_Process();
+            TapHold_Process();
+            KeyProcessor_TT_Process();
+
+            if (!usb_suspended) {
+                HIDReporter_SendIfChanged(&hUsbDeviceFS);
+                RawHID_Process(&hUsbDeviceFS);
+            }
+
+            if (SplitComm_GetStatus() == SPLIT_CONNECTED &&
+                !usb_suspended &&
+                hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
+                LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
             }
 
             const KeyProcessorState_t *kp = KeyProcessor_GetState();
             LedManager_SetLayerState(kp->layer_state);
 
         } else {
-
             KeyEvent_t ev;
             while (Matrix_GetEvent(&ev)) {
                 SplitComm_SendKeyEvent(ev.key_index,
@@ -1979,9 +3087,30 @@ int main(void)
     }
 }
 
+static void USB_TryRemoteWakeup(void)
+{
+    static bool s_wakeup_sent = false;
+
+    if (!USBD_HID_IsSuspended(&hUsbDeviceFS)) {
+        s_wakeup_sent = false;
+        return;
+    }
+    if (s_wakeup_sent) return;
+
+    PCD_HandleTypeDef *hpcd = (PCD_HandleTypeDef *)hUsbDeviceFS.pData;
+    if (hpcd == NULL) return;
+
+    if (hUsbDeviceFS.dev_state == USBD_STATE_SUSPENDED &&
+        hUsbDeviceFS.dev_remote_wakeup == 1U) {
+        HAL_PCD_ActivateRemoteWakeup(hpcd);
+        HAL_Delay(USB_REMOTE_WAKEUP_DURATION_MS);
+        HAL_PCD_DeActivateRemoteWakeup(hpcd);
+        s_wakeup_sent = true;
+    }
+}
+
 static void Boot_IndicateRole(void)
 {
-
     uint8_t blinks = IS_MASTER() ? 2U : 4U;
     for (uint8_t i = 0U; i < blinks; i++) {
         HAL_GPIO_WritePin(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, GPIO_PIN_RESET);
@@ -1990,7 +3119,6 @@ static void Boot_IndicateRole(void)
         HAL_Delay(100U);
     }
     HAL_Delay(200U);
-
 }
 
 void SystemClock_Config(void)
@@ -2009,9 +3137,7 @@ void SystemClock_Config(void)
     RCC_OscInitStruct.PLL.PLLN       = 336;
     RCC_OscInitStruct.PLL.PLLP       = RCC_PLLP_DIV4;
     RCC_OscInitStruct.PLL.PLLQ       = 7;
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-        Error_Handler();
-    }
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) Error_Handler();
 
     RCC_ClkInitStruct.ClockType      = RCC_CLOCKTYPE_HCLK  | RCC_CLOCKTYPE_SYSCLK |
                                        RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
@@ -2019,40 +3145,29 @@ void SystemClock_Config(void)
     RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
     RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
-        Error_Handler();
-    }
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) Error_Handler();
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM5) {
-        HAL_IncTick();
-    }
+    if (htim->Instance == TIM5) HAL_IncTick();
     if (htim->Instance == TIM2) {
         Matrix_DebounceTask();
         Matrix_Scan();
     }
 }
 
-void Error_Handler(void)
-{
-    __disable_irq();
-    while (1) { }
-}
+void Error_Handler(void) { __disable_irq(); while (1) { } }
 
 #ifdef USE_FULL_ASSERT
-void assert_failed(uint8_t *file, uint32_t line)
-{
-    (void)file;
-    (void)line;
-}
+void assert_failed(uint8_t *file, uint32_t line) { (void)file; (void)line; }
 #endif
 ```
 
 ### `Core\Src\matrix_driver.c`
 ```c
 #include "matrix_driver.h"
+#include "keyboard_config.h"
 #include <string.h>
 
 static MatrixState_t   s_matrix_state;
@@ -2061,34 +3176,47 @@ static KeyEventQueue_t s_event_queue;
 static const uint16_t s_row_pins[MATRIX_ROWS] = ROW_PINS_ARRAY;
 static const uint16_t s_col_pins[MATRIX_COLS] = COL_PINS_ARRAY;
 
-static void _Matrix_ScanRaw(void);
-static void _Matrix_ApplyDebounce(void);
-static void _Matrix_GenerateEvents(uint8_t row, uint8_t col, bool new_state);
-static bool _Queue_Push(const KeyEvent_t *event);
+static void     _Matrix_ScanRaw(void);
+static void     _Matrix_ApplyDebounce(void);
+static void     _Matrix_GenerateEvents(uint8_t row, uint8_t col, bool new_state);
+static bool     _Queue_Push(const KeyEvent_t *event);
 
-static inline void _Row_DriveHigh(uint8_t row);
-static inline void _Row_DriveLow(uint8_t row);
+static inline void    _Row_DriveHigh(uint8_t row);
+static inline void    _Row_DriveLow(uint8_t row);
 static inline uint8_t _Read_Columns(void);
+
+static void _Row_SettleDelay(void)
+{
+    volatile uint32_t count = ROW_SETTLE_US * (SystemCoreClock / 1000000UL);
+    while (count > 0U) {
+        count--;
+    }
+}
 
 void Matrix_Init(void)
 {
     memset(&s_matrix_state, 0, sizeof(MatrixState_t));
-    memset(&s_event_queue, 0, sizeof(KeyEventQueue_t));
+    memset(&s_event_queue,  0, sizeof(KeyEventQueue_t));
 
-    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
-        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+    for (uint8_t row = 0U; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0U; col < MATRIX_COLS; col++) {
             s_matrix_state.debounce[row][col].status        = DEBOUNCE_STABLE;
-            s_matrix_state.debounce[row][col].timer         = 0;
+            s_matrix_state.debounce[row][col].timer         = 0U;
             s_matrix_state.debounce[row][col].stable_state  = false;
             s_matrix_state.debounce[row][col].pending_state = false;
         }
-        s_matrix_state.raw[row]       = 0x00;
-        s_matrix_state.debounced[row] = 0x00;
+        s_matrix_state.raw[row]       = 0x00U;
+        s_matrix_state.debounced[row] = 0x00U;
     }
 
-    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+    for (uint8_t row = 0U; row < MATRIX_ROWS; row++) {
         _Row_DriveHigh(row);
     }
+}
+
+void Matrix_Reset(void)
+{
+    Matrix_Init();
 }
 
 void Matrix_Scan(void)
@@ -2100,15 +3228,11 @@ void Matrix_Scan(void)
 
 void Matrix_DebounceTask(void)
 {
-
-    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
-        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+    for (uint8_t row = 0U; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0U; col < MATRIX_COLS; col++) {
             DebounceState_t *db = &s_matrix_state.debounce[row][col];
-
-            if (db->status == DEBOUNCE_DEBOUNCING) {
-                if (db->timer > 0) {
-                    db->timer--;
-                }
+            if (db->status == DEBOUNCE_DEBOUNCING && db->timer > 0U) {
+                db->timer--;
             }
         }
     }
@@ -2117,25 +3241,29 @@ void Matrix_DebounceTask(void)
 bool Matrix_GetEvent(KeyEvent_t *event)
 {
     if (event == NULL) return false;
-    if (s_event_queue.count == 0) return false;
 
+    uint32_t primask = __get_PRIMASK();
     __disable_irq();
 
+    if (s_event_queue.count == 0U) {
+        __set_PRIMASK(primask);
+        return false;
+    }
+
     *event = s_event_queue.buffer[s_event_queue.head];
-    s_event_queue.head = (s_event_queue.head + 1) % KEY_EVENT_QUEUE_SIZE;
+    s_event_queue.head = (s_event_queue.head + 1U) % KEY_EVENT_QUEUE_SIZE;
     s_event_queue.count--;
 
-    __enable_irq();
-
+    __set_PRIMASK(primask);
     return true;
 }
 
 bool Matrix_HasEvent(void)
 {
-    return (s_event_queue.count > 0);
+    return (s_event_queue.count > 0U);
 }
 
-const MatrixState_t* Matrix_GetState(void)
+const MatrixState_t *Matrix_GetState(void)
 {
     return &s_matrix_state;
 }
@@ -2145,45 +3273,34 @@ KeyState_t Matrix_GetKeyState(uint8_t row, uint8_t col)
     if (row >= MATRIX_ROWS || col >= MATRIX_COLS) {
         return KEY_STATE_RELEASED;
     }
-    bool pressed = (s_matrix_state.debounced[row] >> col) & 0x01;
+    bool pressed = (s_matrix_state.debounced[row] >> col) & 0x01U;
     return pressed ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
 }
 
 uint8_t Matrix_ToKeyIndex(uint8_t row, uint8_t col)
 {
-    return (row * MATRIX_COLS) + col;
-}
-
-void Matrix_Reset(void)
-{
-    Matrix_Init();
+    return (uint8_t)(row * MATRIX_COLS + col);
 }
 
 static inline uint8_t _Read_Columns(void)
 {
-    uint8_t col_state = 0;
-    uint32_t idr = COL_GPIO_PORT->IDR;
+    uint8_t  col_state = 0U;
+    uint32_t idr       = COL_GPIO_PORT->IDR;
 
-    for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+    for (uint8_t col = 0U; col < MATRIX_COLS; col++) {
         if (!(idr & s_col_pins[col])) {
-            col_state |= (1 << col);
+            col_state |= (uint8_t)(1U << col);
         }
     }
-
     return col_state;
 }
 
 static void _Matrix_ScanRaw(void)
 {
-    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
-
+    for (uint8_t row = 0U; row < MATRIX_ROWS; row++) {
         _Row_DriveLow(row);
-
-        __NOP(); __NOP(); __NOP(); __NOP();
-        __NOP(); __NOP(); __NOP(); __NOP();
-
+        _Row_SettleDelay();
         s_matrix_state.raw[row] = _Read_Columns();
-
         _Row_DriveHigh(row);
     }
 }
@@ -2192,55 +3309,42 @@ static void _Matrix_ApplyDebounce(void)
 {
     s_matrix_state.changed = false;
 
-    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
-        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
-            DebounceState_t *db = &s_matrix_state.debounce[row][col];
-
-            bool raw_pressed = (s_matrix_state.raw[row] >> col) & 0x01;
+    for (uint8_t row = 0U; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0U; col < MATRIX_COLS; col++) {
+            DebounceState_t *db    = &s_matrix_state.debounce[row][col];
+            bool             raw_p = (bool)((s_matrix_state.raw[row] >> col) & 0x01U);
 
             if (db->status == DEBOUNCE_STABLE) {
-
-                if (raw_pressed != db->stable_state) {
+                if (raw_p != db->stable_state) {
                     db->status        = DEBOUNCE_DEBOUNCING;
-                    db->pending_state = raw_pressed;
+                    db->pending_state = raw_p;
                     db->timer         = DEBOUNCE_TIME_MS;
                 }
-
             } else {
-
-                if (raw_pressed == db->stable_state) {
-
+                if (raw_p == db->stable_state) {
                     db->status = DEBOUNCE_STABLE;
-                    db->timer  = 0;
-
-                } else if (db->timer == 0) {
-
-                    if (raw_pressed == db->pending_state) {
-
-                        db->stable_state = raw_pressed;
+                    db->timer  = 0U;
+                } else if (db->timer == 0U) {
+                    if (raw_p == db->pending_state) {
+                        db->stable_state = raw_p;
                         db->status       = DEBOUNCE_STABLE;
 
-                        if (raw_pressed) {
-                            s_matrix_state.debounced[row] |= (1 << col);
+                        if (raw_p) {
+                            s_matrix_state.debounced[row] |= (uint8_t)(1U << col);
                         } else {
-                            s_matrix_state.debounced[row] &= ~(1 << col);
+                            s_matrix_state.debounced[row] &= (uint8_t)~(1U << col);
                         }
 
                         s_matrix_state.changed = true;
-                        _Matrix_GenerateEvents(row, col, raw_pressed);
-
+                        _Matrix_GenerateEvents(row, col, raw_p);
                     } else {
-
-                        db->pending_state = raw_pressed;
+                        db->pending_state = raw_p;
                         db->timer         = DEBOUNCE_TIME_MS;
                     }
-
-                } else if (raw_pressed != db->pending_state) {
-
-                    db->pending_state = raw_pressed;
+                } else if (raw_p != db->pending_state) {
+                    db->pending_state = raw_p;
                     db->timer         = DEBOUNCE_TIME_MS;
                 }
-
             }
         }
     }
@@ -2249,26 +3353,23 @@ static void _Matrix_ApplyDebounce(void)
 static void _Matrix_GenerateEvents(uint8_t row, uint8_t col, bool new_state)
 {
     KeyEvent_t event;
-
     event.row       = row;
     event.col       = col;
     event.key_index = Matrix_ToKeyIndex(row, col);
     event.state     = new_state ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
     event.timestamp = HAL_GetTick();
-
     _Queue_Push(&event);
 }
 
 static bool _Queue_Push(const KeyEvent_t *event)
 {
     if (s_event_queue.count >= KEY_EVENT_QUEUE_SIZE) {
-
-        s_event_queue.head = (s_event_queue.head + 1) % KEY_EVENT_QUEUE_SIZE;
+        s_event_queue.head = (s_event_queue.head + 1U) % KEY_EVENT_QUEUE_SIZE;
         s_event_queue.count--;
     }
 
     s_event_queue.buffer[s_event_queue.tail] = *event;
-    s_event_queue.tail = (s_event_queue.tail + 1) % KEY_EVENT_QUEUE_SIZE;
+    s_event_queue.tail = (s_event_queue.tail + 1U) % KEY_EVENT_QUEUE_SIZE;
     s_event_queue.count++;
 
     return true;
@@ -2282,6 +3383,239 @@ static inline void _Row_DriveHigh(uint8_t row)
 static inline void _Row_DriveLow(uint8_t row)
 {
     ROW_GPIO_PORT->BSRR = (uint32_t)s_row_pins[row] << 16U;
+}
+```
+
+### `Core\Src\raw_hid.c`
+```c
+#include "raw_hid.h"
+#include "flash_keymap.h"
+#include "macro_engine.h"
+#include "keyboard_config.h"
+#include "split_comm.h"
+#include "stm32f4xx_hal.h"
+#include <string.h>
+
+extern IWDG_HandleTypeDef hiwdg;
+
+#define RAW_PAYLOAD_MAX     ((uint8_t)(HID_RAW_EP_SIZE - 2U))
+
+#define MACRO_STEPS_PER_RESP    ((RAW_PAYLOAD_MAX - 3U) / RAW_MACRO_STEP_SIZE)
+_Static_assert(MACRO_STEPS_PER_RESP == RAW_MACRO_STEPS_PER_PAGE,
+               "RAW_MACRO_STEPS_PER_PAGE in header must match calculated value");
+
+static void _SendResponse(USBD_HandleTypeDef *pdev,
+                           uint8_t cmd, uint8_t status,
+                           const uint8_t *data, uint8_t data_len);
+
+void RawHID_Init(void)
+{
+}
+
+void RawHID_Process(USBD_HandleTypeDef *pdev)
+{
+    uint8_t buf[HID_RAW_EP_SIZE];
+
+    if (!USBD_HID_GetRawData(buf)) return;
+
+    uint8_t cmd = buf[0];
+
+    uint8_t resp[RAW_PAYLOAD_MAX];
+    memset(resp, 0, sizeof(resp));
+
+    switch (cmd) {
+
+    case RAW_CMD_GET_VERSION:
+        resp[0] = (uint8_t)((FIRMWARE_VERSION >> 8U) & 0xFFU);
+        resp[1] = (uint8_t)( FIRMWARE_VERSION        & 0xFFU);
+        resp[2] = (uint8_t)SPLIT_PROTOCOL_VERSION;
+        resp[3] = (uint8_t)MATRIX_ROWS;
+        resp[4] = (uint8_t)MATRIX_COLS;
+        resp[5] = (uint8_t)(IS_MASTER() ? 1U : 0U);
+        _SendResponse(pdev, cmd, RAW_STATUS_OK, resp, 6U);
+        break;
+
+    case RAW_CMD_GET_KEYMAP: {
+        uint8_t page = buf[1];
+        uint8_t page_data[KEYMAP_PAGE_SIZE];
+
+        if (!FlashKeymap_GetPage(page, page_data)) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+        } else {
+            _SendResponse(pdev, cmd, RAW_STATUS_OK,
+                          page_data, (uint8_t)KEYMAP_PAGE_SIZE);
+        }
+        break;
+    }
+
+    case RAW_CMD_SET_KEYMAP: {
+        uint8_t page = buf[1];
+        if (!FlashKeymap_StagePage(page, &buf[2])) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+        } else {
+            _SendResponse(pdev, cmd, RAW_STATUS_OK, NULL, 0U);
+        }
+        break;
+    }
+
+    case RAW_CMD_COMMIT_KEYMAP:
+        HAL_IWDG_Refresh(&hiwdg);
+        if (!FlashKeymap_Commit()) {
+            _SendResponse(pdev, cmd, RAW_STATUS_ERROR, NULL, 0U);
+        } else {
+            _SendResponse(pdev, cmd, RAW_STATUS_OK, NULL, 0U);
+        }
+        HAL_IWDG_Refresh(&hiwdg);
+        break;
+
+    case RAW_CMD_RESET_KEYMAP:
+        HAL_IWDG_Refresh(&hiwdg);
+        if (!FlashKeymap_Reset()) {
+            _SendResponse(pdev, cmd, RAW_STATUS_ERROR, NULL, 0U);
+        } else {
+            _SendResponse(pdev, cmd, RAW_STATUS_OK, NULL, 0U);
+        }
+        HAL_IWDG_Refresh(&hiwdg);
+        break;
+
+    case RAW_CMD_GET_MACRO: {
+        uint8_t macro_id  = buf[1];
+        uint8_t step_page = buf[2];
+
+        MacroStep_t steps[MAX_MACRO_STEPS];
+        uint8_t     count = 0U;
+
+        if (!MacroEngine_GetMacro(macro_id, steps, &count)) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+            break;
+        }
+
+        uint8_t start_step = (uint8_t)((uint16_t)step_page
+                                        * MACRO_STEPS_PER_RESP);
+        if (start_step >= count && count > 0U) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+            break;
+        }
+
+        uint8_t payload[3U + MACRO_STEPS_PER_RESP * RAW_MACRO_STEP_SIZE];
+        memset(payload, 0, sizeof(payload));
+
+        payload[0] = macro_id;
+        payload[1] = step_page;
+        payload[2] = count;
+
+        for (uint8_t i = 0U; i < MACRO_STEPS_PER_RESP; i++) {
+            uint8_t idx = (uint8_t)(start_step + i);
+            uint8_t *dst = &payload[3U + i * RAW_MACRO_STEP_SIZE];
+            if (idx < count) {
+                memcpy(dst, &steps[idx], sizeof(MacroStep_t));
+            }
+        }
+
+        _SendResponse(pdev, cmd, RAW_STATUS_OK,
+                      payload, (uint8_t)sizeof(payload));
+        break;
+    }
+
+    case RAW_CMD_SET_MACRO: {
+        uint8_t macro_id    = buf[1];
+        uint8_t step_page   = buf[2];
+        uint8_t total_steps = buf[3];
+
+        if (macro_id >= MAX_MACROS || total_steps > MAX_MACRO_STEPS) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+            break;
+        }
+
+        uint8_t start_step = (uint8_t)((uint16_t)step_page
+                                        * MACRO_STEPS_PER_RESP);
+        if (start_step >= total_steps) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+            break;
+        }
+
+        uint8_t steps_in_pkt = total_steps - start_step;
+        if (steps_in_pkt > MACRO_STEPS_PER_RESP) {
+            steps_in_pkt = (uint8_t)MACRO_STEPS_PER_RESP;
+        }
+
+        uint8_t data_bytes = (uint8_t)(steps_in_pkt * RAW_MACRO_STEP_SIZE);
+        if ((uint16_t)4U + data_bytes > HID_RAW_EP_SIZE) {
+            _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+            break;
+        }
+
+        MacroStep_t steps_buf[MACRO_STEPS_PER_RESP];
+        memset(steps_buf, 0, sizeof(steps_buf));
+        memcpy(steps_buf, &buf[4], data_bytes);
+
+        if (step_page == 0U) {
+            uint8_t set_count = (total_steps > MACRO_STEPS_PER_RESP)
+                                 ? (uint8_t)MACRO_STEPS_PER_RESP
+                                 : total_steps;
+            if (!MacroEngine_SetMacro(macro_id, steps_buf, set_count)) {
+                _SendResponse(pdev, cmd, RAW_STATUS_ERROR, NULL, 0U);
+                break;
+            }
+        }
+
+        _SendResponse(pdev, cmd, RAW_STATUS_OK, NULL, 0U);
+        break;
+    }
+
+    case RAW_CMD_COMMIT_MACRO:
+        _SendResponse(pdev, cmd, RAW_STATUS_OK, NULL, 0U);
+        break;
+
+    case RAW_CMD_GET_STATUS: {
+        const SplitCommState_t *sc = SplitComm_GetState();
+
+        resp[0] = (uint8_t)sc->status;
+        resp[1] = (uint8_t)sc->sync_status;
+        resp[2] = (uint8_t)(sc->rx_error_count  & 0xFFU);
+        resp[3] = (uint8_t)(sc->tx_drop_count   & 0xFFU);
+        resp[4] = (uint8_t)(sc->rx_packet_count & 0xFFU);
+        resp[5] = (uint8_t)(sc->tx_packet_count & 0xFFU);
+        resp[6] = FlashKeymap_IsDirty() ? 1U : 0U;
+        resp[7] = MacroEngine_IsBusy()  ? 1U : 0U;
+
+        _SendResponse(pdev, cmd, RAW_STATUS_OK, resp, 8U);
+        break;
+    }
+
+    case RAW_CMD_REBOOT:
+        _SendResponse(pdev, cmd, RAW_STATUS_OK, NULL, 0U);
+        HAL_Delay(100U);
+        NVIC_SystemReset();
+        break;
+
+    default:
+        _SendResponse(pdev, cmd, RAW_STATUS_INVALID, NULL, 0U);
+        break;
+    }
+}
+
+static void _SendResponse(USBD_HandleTypeDef *pdev,
+                           uint8_t cmd, uint8_t status,
+                           const uint8_t *data, uint8_t data_len)
+{
+    static uint8_t s_resp_buf[HID_RAW_EP_SIZE];
+    memset(s_resp_buf, 0, sizeof(s_resp_buf));
+
+    s_resp_buf[0] = cmd | RAW_RESP_FLAG;
+    s_resp_buf[1] = status;
+
+    if (data != NULL && data_len > 0U) {
+        uint8_t copy_len = (data_len > RAW_PAYLOAD_MAX)
+                            ? RAW_PAYLOAD_MAX : data_len;
+        memcpy(&s_resp_buf[2], data, copy_len);
+    }
+
+    USBD_StatusTypeDef st = USBD_HID_SendRawReport(pdev, s_resp_buf);
+    if (st == USBD_BUSY) {
+        HAL_Delay(2U);
+        USBD_HID_SendRawReport(pdev, s_resp_buf);
+    }
 }
 ```
 
@@ -2316,12 +3650,18 @@ static void     _HandleKeyEvent(const SplitPacket_t *pkt);
 static void     _HandleKeyState(const SplitPacket_t *pkt);
 static void     _HandlePing(void);
 static void     _HandlePong(void);
+static void     _HandleSyncReq(const SplitPacket_t *pkt);
+static void     _HandleSyncRsp(const SplitPacket_t *pkt);
 
 static void     _PushRemoteEvent(const KeyEvent_t *event);
 static void     _MasterHeartbeat(void);
 static void     _CheckTimeout(void);
 static void     _CheckRxParseTimeout(void);
+static void     _CheckSyncTimeout(void);
 static void     _UpdateStatusPattern(void);
+static void     _SendSyncReq(void);
+static void     _SendSyncRsp(void);
+static void     _BuildSyncPayload(SplitSyncPayload_t *p);
 static uint16_t _DMA_GetRxWritePos(void);
 
 void SplitComm_Init(void)
@@ -2340,6 +3680,11 @@ void SplitComm_Init(void)
     s_comm.tx_queue.head  = 0;
     s_comm.tx_queue.tail  = 0;
     s_comm.tx_queue.count = 0;
+
+    s_comm.sync_status         = SYNC_NOT_STARTED;
+    s_comm.sync_req_tick       = 0;
+    s_comm.remote_protocol_ver = 0;
+    s_comm.remote_fw_ver       = 0;
 
     s_remote_head  = 0;
     s_remote_tail  = 0;
@@ -2364,12 +3709,11 @@ void SplitComm_Process(void)
 
     if (IS_MASTER()) {
         _MasterHeartbeat();
+        _CheckSyncTimeout();
     }
 
     _CheckTimeout();
-
     _UpdateStatusPattern();
-
     _TxTryDrainQueue();
 }
 
@@ -2392,6 +3736,11 @@ bool SplitComm_SendKeyState(const uint8_t *row_state, uint8_t num_rows)
 SplitConnStatus_t SplitComm_GetStatus(void)
 {
     return s_comm.status;
+}
+
+SplitSyncStatus_t SplitComm_GetSyncStatus(void)
+{
+    return s_comm.sync_status;
 }
 
 bool SplitComm_GetRemoteEvent(KeyEvent_t *event)
@@ -2589,14 +3938,22 @@ static void _CheckRxParseTimeout(void)
 static void _HandlePacket(const SplitPacket_t *pkt)
 {
     s_comm.last_rx_tick = HAL_GetTick();
+
     if (s_comm.status == SPLIT_DISCONNECTED) {
         s_comm.status = SPLIT_CONNECTED;
+
+        if (IS_MASTER()) {
+            s_comm.sync_status = SYNC_NOT_STARTED;
+        }
     }
+
     switch (pkt->type) {
     case SPLIT_PKT_KEY_EVENT: _HandleKeyEvent(pkt); break;
     case SPLIT_PKT_KEY_STATE: _HandleKeyState(pkt); break;
     case SPLIT_PKT_PING:      _HandlePing();         break;
     case SPLIT_PKT_PONG:      _HandlePong();         break;
+    case SPLIT_PKT_SYNC_REQ:  _HandleSyncReq(pkt);  break;
+    case SPLIT_PKT_SYNC_RSP:  _HandleSyncRsp(pkt);  break;
     default:                                          break;
     }
 }
@@ -2652,7 +4009,78 @@ static void _HandlePing(void)
 static void _HandlePong(void)
 {
     if (!IS_MASTER()) return;
-    s_comm.status = SPLIT_CONNECTED;
+
+}
+
+static void _HandleSyncReq(const SplitPacket_t *pkt)
+{
+    if (!IS_SLAVE()) return;
+    if (pkt->length < sizeof(SplitSyncPayload_t)) return;
+
+    const SplitSyncPayload_t *req =
+        (const SplitSyncPayload_t *)pkt->payload;
+
+    s_comm.remote_protocol_ver = req->protocol_version;
+    s_comm.remote_fw_ver = ((uint16_t)req->fw_version_h << 8U) |
+                            req->fw_version_l;
+
+    if (req->protocol_version == SPLIT_PROTOCOL_VERSION &&
+        req->matrix_rows == MATRIX_ROWS &&
+        req->matrix_cols == MATRIX_COLS) {
+        s_comm.sync_status = SYNC_OK;
+    } else {
+        s_comm.sync_status = SYNC_MISMATCH;
+    }
+
+    _SendSyncRsp();
+}
+
+static void _HandleSyncRsp(const SplitPacket_t *pkt)
+{
+    if (!IS_MASTER()) return;
+    if (pkt->length < sizeof(SplitSyncPayload_t)) return;
+
+    const SplitSyncPayload_t *rsp =
+        (const SplitSyncPayload_t *)pkt->payload;
+
+    s_comm.remote_protocol_ver = rsp->protocol_version;
+    s_comm.remote_fw_ver = ((uint16_t)rsp->fw_version_h << 8U) |
+                            rsp->fw_version_l;
+
+    if (rsp->protocol_version == SPLIT_PROTOCOL_VERSION &&
+        rsp->matrix_rows == MATRIX_ROWS &&
+        rsp->matrix_cols == MATRIX_COLS) {
+        s_comm.sync_status = SYNC_OK;
+    } else {
+        s_comm.sync_status = SYNC_MISMATCH;
+    }
+}
+
+static void _BuildSyncPayload(SplitSyncPayload_t *p)
+{
+    p->protocol_version = SPLIT_PROTOCOL_VERSION;
+    p->fw_version_h     = (uint8_t)((FIRMWARE_VERSION >> 8U) & 0xFFU);
+    p->fw_version_l     = (uint8_t)(FIRMWARE_VERSION & 0xFFU);
+    p->matrix_rows      = MATRIX_ROWS;
+    p->matrix_cols      = MATRIX_COLS;
+}
+
+static void _SendSyncReq(void)
+{
+    SplitSyncPayload_t payload;
+    _BuildSyncPayload(&payload);
+    _BuildAndQueuePacket(SPLIT_PKT_SYNC_REQ,
+                         (const uint8_t *)&payload, sizeof(payload));
+    s_comm.sync_status   = SYNC_PENDING;
+    s_comm.sync_req_tick = HAL_GetTick();
+}
+
+static void _SendSyncRsp(void)
+{
+    SplitSyncPayload_t payload;
+    _BuildSyncPayload(&payload);
+    _BuildAndQueuePacket(SPLIT_PKT_SYNC_RSP,
+                         (const uint8_t *)&payload, sizeof(payload));
 }
 
 static void _PushRemoteEvent(const KeyEvent_t *event)
@@ -2671,7 +4099,22 @@ static void _MasterHeartbeat(void)
     uint32_t now = HAL_GetTick();
     if ((now - s_comm.last_heartbeat_tick) >= SPLIT_HEARTBEAT_MS) {
         s_comm.last_heartbeat_tick = now;
-        _BuildAndQueuePacket(SPLIT_PKT_PING, NULL, 0U);
+
+        if (s_comm.status == SPLIT_CONNECTED &&
+            s_comm.sync_status == SYNC_NOT_STARTED) {
+            _SendSyncReq();
+        } else {
+            _BuildAndQueuePacket(SPLIT_PKT_PING, NULL, 0U);
+        }
+    }
+}
+
+static void _CheckSyncTimeout(void)
+{
+    if (s_comm.sync_status == SYNC_PENDING) {
+        if ((HAL_GetTick() - s_comm.sync_req_tick) >= SPLIT_SYNC_TIMEOUT_MS) {
+            s_comm.sync_status = SYNC_TIMEOUT;
+        }
     }
 }
 
@@ -2679,17 +4122,20 @@ static void _CheckTimeout(void)
 {
     if (s_comm.status == SPLIT_CONNECTED) {
         if ((HAL_GetTick() - s_comm.last_rx_tick) > SPLIT_TIMEOUT_MS) {
-            s_comm.status = SPLIT_DISCONNECTED;
+            s_comm.status      = SPLIT_DISCONNECTED;
+            s_comm.sync_status = SYNC_NOT_STARTED;
         }
     }
 }
 
 static void _UpdateStatusPattern(void)
 {
-    if (s_comm.status == SPLIT_CONNECTED) {
-        LedManager_SetStatusPattern(LED_STATUS_OFF);
-    } else {
+    if (s_comm.status != SPLIT_CONNECTED) {
         LedManager_SetStatusPattern(LED_STATUS_BLINK_2HZ);
+    } else if (s_comm.sync_status == SYNC_MISMATCH) {
+        LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
+    } else {
+        LedManager_SetStatusPattern(LED_STATUS_OFF);
     }
 }
 
@@ -2835,48 +4281,16 @@ extern DMA_HandleTypeDef  hdma_usart1_tx;
 extern UART_HandleTypeDef huart1;
 extern TIM_HandleTypeDef  htim5;
 
-void NMI_Handler(void)
-{
-    while (1) { }
-}
+void NMI_Handler(void)      { while (1) { } }
+void HardFault_Handler(void){ while (1) { } }
+void MemManage_Handler(void){ while (1) { } }
+void BusFault_Handler(void) { while (1) { } }
+void UsageFault_Handler(void){ while (1) { } }
 
-void HardFault_Handler(void)
-{
-
-    while (1) { }
-}
-
-void MemManage_Handler(void)
-{
-    while (1) { }
-}
-
-void BusFault_Handler(void)
-{
-    while (1) { }
-}
-
-void UsageFault_Handler(void)
-{
-    while (1) { }
-}
-
-void SVC_Handler(void)
-{
-}
-
-void DebugMon_Handler(void)
-{
-}
-
-void PendSV_Handler(void)
-{
-}
-
-void SysTick_Handler(void)
-{
-
-}
+void SVC_Handler(void)      { }
+void DebugMon_Handler(void) { }
+void PendSV_Handler(void)   { }
+void SysTick_Handler(void)  { }
 
 void TIM2_IRQHandler(void)
 {
@@ -2889,6 +4303,12 @@ void USART1_IRQHandler(void)
     if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) &&
         __HAL_UART_GET_IT_SOURCE(&huart1, UART_IT_IDLE))
     {
+
+        volatile uint32_t tmp;
+        tmp = huart1.Instance->SR;
+        tmp = huart1.Instance->DR;
+        (void)tmp;
+
         SplitComm_UART_IdleCallback();
     }
 
@@ -2905,14 +4325,14 @@ void DMA2_Stream2_IRQHandler(void)
     HAL_DMA_IRQHandler(&hdma_usart1_rx);
 }
 
-void OTG_FS_IRQHandler(void)
-{
-    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-}
-
 void DMA2_Stream7_IRQHandler(void)
 {
     HAL_DMA_IRQHandler(&hdma_usart1_tx);
+}
+
+void OTG_FS_IRQHandler(void)
+{
+    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 }
 ```
 
@@ -3104,7 +4524,6 @@ void *_sbrk(ptrdiff_t incr)
 ### `Core\Src\system_stm32f4xx.c`
 ```c
 #include "stm32f4xx.h"
-#include "split_comm.h"
 
 #if !defined  (HSE_VALUE)
   #define HSE_VALUE    ((uint32_t)25000000)
@@ -3616,6 +5035,137 @@ void SystemInit_ExtMemCtl(void)
 #endif
 ```
 
+### `Core\Src\tap_hold.c`
+```c
+#include "tap_hold.h"
+#include "stm32f4xx_hal.h"
+#include <string.h>
+
+static TapHoldEntry_t s_table[MAX_TAP_HOLD_KEYS];
+static TapHoldPending_t s_pending;
+static TapHoldFireCb_t s_callback = NULL;
+
+static void _Resolve(bool as_tap);
+
+void TapHold_Init(void)
+{
+    memset(s_table, 0, sizeof(s_table));
+    memset(&s_pending, 0, sizeof(s_pending));
+    s_pending.state = TH_STATE_IDLE;
+    s_callback = NULL;
+}
+
+bool TapHold_SetEntry(uint8_t th_id, keycode_t tap_kc, keycode_t hold_kc)
+{
+    if (th_id >= MAX_TAP_HOLD_KEYS) return false;
+    s_table[th_id].tap_kc  = tap_kc;
+    s_table[th_id].hold_kc = hold_kc;
+    return true;
+}
+
+bool TapHold_GetEntry(uint8_t th_id, TapHoldEntry_t *entry_out)
+{
+    if (th_id >= MAX_TAP_HOLD_KEYS || entry_out == NULL) return false;
+    *entry_out = s_table[th_id];
+    return true;
+}
+
+void TapHold_RegisterCallback(TapHoldFireCb_t cb)
+{
+    s_callback = cb;
+}
+
+bool TapHold_HandlePress(uint8_t key_index, uint8_t th_id, bool is_remote)
+{
+    if (th_id >= MAX_TAP_HOLD_KEYS) return false;
+
+    if (s_pending.state == TH_STATE_PENDING) {
+        _Resolve(false);
+    }
+
+    s_pending.state      = TH_STATE_PENDING;
+    s_pending.key_index  = key_index;
+    s_pending.th_id      = th_id;
+    s_pending.is_remote  = is_remote;
+    s_pending.press_tick = HAL_GetTick();
+
+    return true;
+}
+
+bool TapHold_HandleRelease(uint8_t key_index)
+{
+    if (s_pending.state == TH_STATE_IDLE) return false;
+    if (s_pending.key_index != key_index) return false;
+
+    if (s_pending.state == TH_STATE_PENDING) {
+        _Resolve(true);
+        if (s_callback != NULL) {
+            s_callback(s_table[s_pending.th_id].tap_kc,
+                       KEY_STATE_RELEASED, s_pending.is_remote);
+        }
+    } else if (s_pending.state == TH_STATE_HOLD_ACTIVE) {
+        if (s_callback != NULL) {
+            s_callback(s_table[s_pending.th_id].hold_kc,
+                       KEY_STATE_RELEASED, s_pending.is_remote);
+        }
+    } else if (s_pending.state == TH_STATE_TAP_ACTIVE) {
+        if (s_callback != NULL) {
+            s_callback(s_table[s_pending.th_id].tap_kc,
+                       KEY_STATE_RELEASED, s_pending.is_remote);
+        }
+    }
+
+    s_pending.state = TH_STATE_IDLE;
+    return true;
+}
+
+void TapHold_NotifyOtherKeyPress(void)
+{
+    if (s_pending.state == TH_STATE_PENDING) {
+        _Resolve(false);
+    }
+}
+
+void TapHold_Process(void)
+{
+    if (s_pending.state != TH_STATE_PENDING) return;
+
+    uint32_t elapsed = HAL_GetTick() - s_pending.press_tick;
+    if (elapsed >= TAPPING_TERM_MS) {
+        _Resolve(false);
+    }
+}
+
+bool TapHold_IsPending(uint8_t key_index)
+{
+    return (s_pending.state == TH_STATE_PENDING &&
+            s_pending.key_index == key_index);
+}
+
+uint8_t TapHold_GetPendingKeyIndex(void)
+{
+    return s_pending.key_index;
+}
+
+static void _Resolve(bool as_tap)
+{
+    if (s_pending.state != TH_STATE_PENDING) return;
+
+    keycode_t kc;
+    if (as_tap) {
+        kc = s_table[s_pending.th_id].tap_kc;
+        s_pending.state = TH_STATE_TAP_ACTIVE;
+    } else {
+        kc = s_table[s_pending.th_id].hold_kc;
+        s_pending.state = TH_STATE_HOLD_ACTIVE;
+    }
+
+    if (s_callback != NULL) {
+        s_callback(kc, KEY_STATE_PRESSED, s_pending.is_remote);
+    }
+}
+```
+
 ### `Core\Src\tim.c`
 ```c
 #include "tim.h"
@@ -4002,188 +5552,130 @@ static uint8_t *USBD_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t
 #include "usbd_ctlreq.h"
 #include "usbd_def.h"
 #include "usbd_desc.h"
+#include "led_manager.h"
 #include <string.h>
 
 static const uint8_t HID_KB_ReportDesc[] = {
-
     0x05, 0x01,
-
     0x09, 0x06,
-
     0xA1, 0x01,
-
     0x85, HID_REPORT_ID_KEYBOARD,
 
     0x05, 0x07,
-
     0x19, 0xE0,
-
     0x29, 0xE7,
-
     0x15, 0x00,
-
     0x25, 0x01,
-
     0x75, 0x01,
-
     0x95, 0x08,
-
     0x81, 0x02,
 
     0x95, 0x01,
-
     0x75, 0x08,
-
     0x81, 0x03,
 
     0x05, 0x08,
-
     0x19, 0x01,
-
     0x29, 0x05,
-
     0x95, 0x05,
-
     0x75, 0x01,
-
     0x91, 0x02,
-
     0x95, 0x01,
-
     0x75, 0x03,
-
     0x91, 0x03,
 
     0x05, 0x07,
-
     0x19, 0x00,
-
     0x29, 0xE7,
-
     0x15, 0x00,
-
     0x26, 0xE7, 0x00,
-
     0x95, 0x06,
-
     0x75, 0x08,
-
     0x81, 0x00,
+
+    0x05, 0x01,
+    0x09, 0x80,
+    0xA1, 0x01,
+    0x85, HID_REPORT_ID_SYSTEM,
+    0x19, 0x81,
+    0x29, 0x83,
+    0x15, 0x00,
+    0x25, 0x01,
+    0x75, 0x01,
+    0x95, 0x03,
+    0x81, 0x02,
+    0x95, 0x05,
+    0x75, 0x01,
+    0x81, 0x03,
+    0xC0,
 
     0xC0,
 };
 
 static const uint8_t HID_Raw_ReportDesc[] = {
-
     0x06, 0x60, 0xFF,
-
     0x09, 0x61,
-
     0xA1, 0x01,
-
     0x09, 0x62,
     0x15, 0x00,
     0x26, 0xFF, 0x00,
     0x75, 0x08,
     0x95, HID_RAW_EP_SIZE,
     0x81, 0x02,
-
     0x09, 0x63,
     0x15, 0x00,
     0x26, 0xFF, 0x00,
     0x75, 0x08,
     0x95, HID_RAW_EP_SIZE,
     0x91, 0x02,
-
     0xC0,
 };
 
 static const uint8_t USBD_HID_CfgDesc[HID_CUSTOM_CONFIG_DESC_SIZE] = {
-
-    0x09,
-    USB_DESC_TYPE_CONFIGURATION,
+    0x09, USB_DESC_TYPE_CONFIGURATION,
     LOBYTE(HID_CUSTOM_CONFIG_DESC_SIZE),
     HIBYTE(HID_CUSTOM_CONFIG_DESC_SIZE),
-    0x02,
-    0x01,
-    0x00,
-    0xA0,
-    0x32,
+    0x02, 0x01, 0x00, 0xA0, 0x32,
 
-    0x09,
-    USB_DESC_TYPE_INTERFACE,
-    HID_KB_INTERFACE_NUM,
-    0x00,
-    0x01,
-    0x03,
-    0x01,
-    0x01,
-    0x00,
+    0x09, USB_DESC_TYPE_INTERFACE,
+    HID_KB_INTERFACE_NUM, 0x00, 0x01, 0x03, 0x01, 0x01, 0x00,
 
-    0x09,
-    0x21,
-    0x11, 0x01,
-    0x00,
-    0x01,
-    0x22,
+    0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
     LOBYTE(sizeof(HID_KB_ReportDesc)),
     HIBYTE(sizeof(HID_KB_ReportDesc)),
 
-    0x07,
-    USB_DESC_TYPE_ENDPOINT,
-    HID_KB_EP_IN_ADDR,
-    0x03,
-    LOBYTE(HID_KB_EP_IN_SIZE),
-    HIBYTE(HID_KB_EP_IN_SIZE),
+    0x07, USB_DESC_TYPE_ENDPOINT, HID_KB_EP_IN_ADDR, 0x03,
+    LOBYTE(HID_KB_EP_IN_SIZE), HIBYTE(HID_KB_EP_IN_SIZE),
     HID_KB_POLL_INTERVAL,
 
-    0x09,
-    USB_DESC_TYPE_INTERFACE,
-    HID_RAW_INTERFACE_NUM,
-    0x00,
-    0x02,
-    0x03,
-    0x00,
-    0x00,
-    0x00,
+    0x09, USB_DESC_TYPE_INTERFACE,
+    HID_RAW_INTERFACE_NUM, 0x00, 0x02, 0x03, 0x00, 0x00, 0x00,
 
-    0x09,
-    0x21,
-    0x11, 0x01,
-    0x00,
-    0x01,
-    0x22,
+    0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
     LOBYTE(sizeof(HID_Raw_ReportDesc)),
     HIBYTE(sizeof(HID_Raw_ReportDesc)),
 
-    0x07,
-    USB_DESC_TYPE_ENDPOINT,
-    HID_RAW_EP_IN_ADDR,
-    0x03,
-    LOBYTE(HID_RAW_EP_SIZE),
-    HIBYTE(HID_RAW_EP_SIZE),
+    0x07, USB_DESC_TYPE_ENDPOINT, HID_RAW_EP_IN_ADDR, 0x03,
+    LOBYTE(HID_RAW_EP_SIZE), HIBYTE(HID_RAW_EP_SIZE),
     HID_RAW_POLL_INTERVAL,
 
-    0x07,
-    USB_DESC_TYPE_ENDPOINT,
-    HID_RAW_EP_OUT_ADDR,
-    0x03,
-    LOBYTE(HID_RAW_EP_SIZE),
-    HIBYTE(HID_RAW_EP_SIZE),
+    0x07, USB_DESC_TYPE_ENDPOINT, HID_RAW_EP_OUT_ADDR, 0x03,
+    LOBYTE(HID_RAW_EP_SIZE), HIBYTE(HID_RAW_EP_SIZE),
     HID_RAW_POLL_INTERVAL,
 };
 
 static USBD_HID_Custom_HandleTypeDef s_hid_handle;
 
-static uint8_t s_raw_rx_buf[HID_RAW_EP_SIZE];
-static uint8_t s_raw_data_buf[HID_RAW_EP_SIZE];
-static bool    s_raw_data_available = false;
+static uint8_t       s_raw_rx_buf[HID_RAW_EP_SIZE];
+static uint8_t       s_raw_data_buf[HID_RAW_EP_SIZE];
+static volatile bool s_raw_data_available = false;
 
-static uint8_t USBD_HID_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
-static uint8_t USBD_HID_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
-static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
-static uint8_t USBD_HID_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum);
-static uint8_t USBD_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  USBD_HID_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+static uint8_t  USBD_HID_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+static uint8_t  USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
+static uint8_t  USBD_HID_EP0_RxReady(USBD_HandleTypeDef *pdev);
+static uint8_t  USBD_HID_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum);
+static uint8_t  USBD_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum);
 static uint8_t *USBD_HID_GetCfgDesc(uint16_t *length);
 static uint8_t *USBD_HID_GetDeviceQualifierDesc(uint16_t *length);
 
@@ -4192,12 +5684,10 @@ USBD_ClassTypeDef USBD_HID_Custom = {
     USBD_HID_DeInit,
     USBD_HID_Setup,
     NULL,
-    NULL,
+    USBD_HID_EP0_RxReady,
     USBD_HID_DataIn,
     USBD_HID_DataOut,
-    NULL,
-    NULL,
-    NULL,
+    NULL, NULL, NULL,
     USBD_HID_GetCfgDesc,
     USBD_HID_GetCfgDesc,
     USBD_HID_GetCfgDesc,
@@ -4207,83 +5697,84 @@ USBD_ClassTypeDef USBD_HID_Custom = {
 static uint8_t USBD_HID_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
     (void)cfgidx;
-
-    memset(&s_hid_handle, 0, sizeof(USBD_HID_Custom_HandleTypeDef));
-
+    memset(&s_hid_handle, 0, sizeof(s_hid_handle));
     s_hid_handle.protocol  = HID_PROTOCOL_REPORT;
     s_hid_handle.idle_rate = 0U;
+    s_hid_handle.suspended = false;
     pdev->pClassData = &s_hid_handle;
 
     USBD_LL_OpenEP(pdev, HID_KB_EP_IN_ADDR, USBD_EP_TYPE_INTR, HID_KB_EP_IN_SIZE);
-    pdev->ep_in[HID_KB_EP_IN_ADDR & 0xFU].is_used = 1U;
+    pdev->ep_in[HID_KB_EP_IN_ADDR & 0x0FU].is_used = 1U;
 
     USBD_LL_OpenEP(pdev, HID_RAW_EP_IN_ADDR, USBD_EP_TYPE_INTR, HID_RAW_EP_SIZE);
-    pdev->ep_in[HID_RAW_EP_IN_ADDR & 0xFU].is_used = 1U;
+    pdev->ep_in[HID_RAW_EP_IN_ADDR & 0x0FU].is_used = 1U;
 
     USBD_LL_OpenEP(pdev, HID_RAW_EP_OUT_ADDR, USBD_EP_TYPE_INTR, HID_RAW_EP_SIZE);
-    pdev->ep_out[HID_RAW_EP_OUT_ADDR & 0xFU].is_used = 1U;
+    pdev->ep_out[HID_RAW_EP_OUT_ADDR & 0x0FU].is_used = 1U;
 
-    USBD_LL_PrepareReceive(pdev, HID_RAW_EP_OUT_ADDR,
-                           s_raw_rx_buf, HID_RAW_EP_SIZE);
+    USBD_LL_PrepareReceive(pdev, HID_RAW_EP_OUT_ADDR, s_raw_rx_buf, HID_RAW_EP_SIZE);
 
     s_hid_handle.kb_state  = HID_IDLE;
     s_hid_handle.raw_state = HID_IDLE;
-
     return USBD_OK;
 }
 
 static uint8_t USBD_HID_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
     (void)cfgidx;
-
     USBD_LL_CloseEP(pdev, HID_KB_EP_IN_ADDR);
     USBD_LL_CloseEP(pdev, HID_RAW_EP_IN_ADDR);
     USBD_LL_CloseEP(pdev, HID_RAW_EP_OUT_ADDR);
-
-    pdev->ep_in[HID_KB_EP_IN_ADDR  & 0xFU].is_used = 0U;
-    pdev->ep_in[HID_RAW_EP_IN_ADDR & 0xFU].is_used = 0U;
-    pdev->ep_out[HID_RAW_EP_OUT_ADDR & 0xFU].is_used = 0U;
-
+    pdev->ep_in[HID_KB_EP_IN_ADDR   & 0x0FU].is_used = 0U;
+    pdev->ep_in[HID_RAW_EP_IN_ADDR  & 0x0FU].is_used = 0U;
+    pdev->ep_out[HID_RAW_EP_OUT_ADDR & 0x0FU].is_used = 0U;
     pdev->pClassData = NULL;
-
     return USBD_OK;
 }
 
-static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
-                               USBD_SetupReqTypedef *req)
+static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
-
-    uint16_t len   = 0U;
-    uint8_t *pbuf  = NULL;
+    uint16_t len         = 0U;
+    uint8_t *pbuf        = NULL;
     uint16_t status_info = 0U;
     USBD_StatusTypeDef ret = USBD_OK;
 
-    if (hhid == NULL) return USBD_FAIL;
+    if (hhid == NULL) return (uint8_t)USBD_FAIL;
 
     switch (req->bmRequest & USB_REQ_TYPE_MASK) {
 
     case USB_REQ_TYPE_CLASS:
         switch (req->bRequest) {
-
         case HID_REQ_SET_PROTOCOL:
-
             hhid->protocol = (uint8_t)(req->wValue & 0x01U);
             break;
-
         case HID_REQ_GET_PROTOCOL:
             USBD_CtlSendData(pdev, &hhid->protocol, 1U);
             break;
-
         case HID_REQ_SET_IDLE:
             hhid->idle_rate = (uint8_t)(req->wValue >> 8);
             break;
-
         case HID_REQ_GET_IDLE:
             USBD_CtlSendData(pdev, &hhid->idle_rate, 1U);
             break;
-
+        case HID_REQ_SET_REPORT:
+            if ((req->wIndex & 0xFFU) == HID_KB_INTERFACE_NUM) {
+                hhid->led_report_len =
+                    (uint8_t)MIN(req->wLength, sizeof(hhid->led_report_buf));
+                USBD_CtlPrepareRx(pdev, hhid->led_report_buf, hhid->led_report_len);
+            }
+            break;
+        case HID_REQ_GET_REPORT:
+            if ((req->wIndex & 0xFFU) == HID_KB_INTERFACE_NUM) {
+                uint8_t report_type = (uint8_t)((req->wValue >> 8) & 0xFFU);
+                if (report_type == HID_REPORT_TYPE_OUTPUT) {
+                    uint8_t led_val = LedManager_GetHIDLeds();
+                    USBD_CtlSendData(pdev, &led_val, 1U);
+                }
+            }
+            break;
         default:
             USBD_CtlError(pdev, req);
             ret = USBD_FAIL;
@@ -4293,7 +5784,6 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
 
     case USB_REQ_TYPE_STANDARD:
         switch (req->bRequest) {
-
         case USB_REQ_GET_STATUS:
             if (pdev->dev_state == USBD_STATE_CONFIGURED) {
                 USBD_CtlSendData(pdev, (uint8_t *)&status_info, 2U);
@@ -4302,22 +5792,18 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
                 ret = USBD_FAIL;
             }
             break;
-
         case USB_REQ_GET_DESCRIPTOR:
             if ((req->wValue >> 8) == HID_REPORT_DESC) {
-
                 if ((req->wIndex & 0xFFU) == HID_KB_INTERFACE_NUM) {
                     pbuf = (uint8_t *)HID_KB_ReportDesc;
-                    len  = sizeof(HID_KB_ReportDesc);
+                    len  = (uint16_t)sizeof(HID_KB_ReportDesc);
                 } else {
                     pbuf = (uint8_t *)HID_Raw_ReportDesc;
-                    len  = sizeof(HID_Raw_ReportDesc);
+                    len  = (uint16_t)sizeof(HID_Raw_ReportDesc);
                 }
                 len = MIN(len, req->wLength);
                 USBD_CtlSendData(pdev, pbuf, len);
-
             } else if ((req->wValue >> 8) == HID_DESCRIPTOR_TYPE) {
-
                 if ((req->wIndex & 0xFFU) == HID_KB_INTERFACE_NUM) {
                     pbuf = (uint8_t *)USBD_HID_CfgDesc + 18U;
                 } else {
@@ -4325,13 +5811,11 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
                 }
                 len = MIN(9U, req->wLength);
                 USBD_CtlSendData(pdev, pbuf, len);
-
             } else {
                 USBD_CtlError(pdev, req);
                 ret = USBD_FAIL;
             }
             break;
-
         case USB_REQ_GET_INTERFACE:
             if (pdev->dev_state == USBD_STATE_CONFIGURED) {
                 uint8_t alt = 0U;
@@ -4341,14 +5825,8 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
                 ret = USBD_FAIL;
             }
             break;
-
-        case USB_REQ_SET_INTERFACE:
-
-            break;
-
-        case USB_REQ_CLEAR_FEATURE:
-            break;
-
+        case USB_REQ_SET_INTERFACE:  break;
+        case USB_REQ_CLEAR_FEATURE:  break;
         default:
             USBD_CtlError(pdev, req);
             ret = USBD_FAIL;
@@ -4365,19 +5843,37 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
     return (uint8_t)ret;
 }
 
+static uint8_t USBD_HID_EP0_RxReady(USBD_HandleTypeDef *pdev)
+{
+    USBD_HID_Custom_HandleTypeDef *hhid =
+        (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+    if (hhid == NULL) return USBD_OK;
+
+    if (hhid->led_report_len > 0U) {
+        uint8_t led_bits;
+        if (hhid->led_report_len >= 2U &&
+            hhid->led_report_buf[0] == HID_REPORT_ID_KEYBOARD) {
+            led_bits = hhid->led_report_buf[1];
+        } else {
+            led_bits = hhid->led_report_buf[0];
+        }
+        LedManager_SetHIDLeds(led_bits & 0x1FU);
+        hhid->led_report_len = 0U;
+    }
+    return USBD_OK;
+}
+
 static uint8_t USBD_HID_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
-
-    if (hhid == NULL) return USBD_FAIL;
+    if (hhid == NULL) return (uint8_t)USBD_FAIL;
 
     if (epnum == (HID_KB_EP_IN_ADDR & 0x0FU)) {
         hhid->kb_state = HID_IDLE;
     } else if (epnum == (HID_RAW_EP_IN_ADDR & 0x0FU)) {
         hhid->raw_state = HID_IDLE;
     }
-
     return USBD_OK;
 }
 
@@ -4385,12 +5881,11 @@ static uint8_t USBD_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
     if (epnum == (HID_RAW_EP_OUT_ADDR & 0x0FU)) {
         memcpy(s_raw_data_buf, s_raw_rx_buf, HID_RAW_EP_SIZE);
+        __DMB();
         s_raw_data_available = true;
-
         USBD_LL_PrepareReceive(pdev, HID_RAW_EP_OUT_ADDR,
                                s_raw_rx_buf, HID_RAW_EP_SIZE);
     }
-
     return USBD_OK;
 }
 
@@ -4404,9 +5899,7 @@ static uint8_t USBD_HID_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] = {
     USB_LEN_DEV_QUALIFIER_DESC,
     USB_DESC_TYPE_DEVICE_QUALIFIER,
     0x00, 0x02,
-    0x00,
-    0x00,
-    0x00,
+    0x00, 0x00, 0x00,
     0x40,
     0x01,
     0x00,
@@ -4423,25 +5916,39 @@ USBD_StatusTypeDef USBD_HID_SendKeyboardReport(USBD_HandleTypeDef *pdev,
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
-
-    if (hhid == NULL)                          return USBD_FAIL;
-    if (pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
-    if (hhid->kb_state == HID_BUSY)            return USBD_BUSY;
+    if (hhid == NULL || pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
+    if (hhid->kb_state == HID_BUSY) return USBD_BUSY;
 
     hhid->kb_state = HID_BUSY;
-
     if (hhid->protocol == HID_PROTOCOL_BOOT) {
-
         USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
-                         &report->modifiers,
-                         HID_KB_EP_BOOT_SIZE);
+                         &report->modifiers, HID_KB_EP_BOOT_SIZE);
     } else {
-
         USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
-                         (uint8_t *)report,
-                         sizeof(HID_KeyboardReport_t));
+                         (uint8_t *)report, sizeof(HID_KeyboardReport_t));
     }
+    return USBD_OK;
+}
 
+USBD_StatusTypeDef USBD_HID_SendSystemReport(USBD_HandleTypeDef *pdev,
+                                              uint8_t usage_bitmap)
+{
+    USBD_HID_Custom_HandleTypeDef *hhid =
+        (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+    if (hhid == NULL || pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
+    if (hhid->kb_state == HID_BUSY) return USBD_BUSY;
+
+    static uint8_t sys_buf[2][2];
+    static uint8_t sys_active = 0U;
+
+    uint8_t tx_idx = sys_active;
+    sys_active ^= 1U;
+
+    sys_buf[tx_idx][0] = HID_REPORT_ID_SYSTEM;
+    sys_buf[tx_idx][1] = usage_bitmap;
+
+    hhid->kb_state = HID_BUSY;
+    USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR, sys_buf[tx_idx], 2U);
     return USBD_OK;
 }
 
@@ -4450,15 +5957,12 @@ USBD_StatusTypeDef USBD_HID_SendNKROReport(USBD_HandleTypeDef *pdev,
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
-
-    if (hhid == NULL)                          return USBD_FAIL;
-    if (pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
-    if (hhid->kb_state == HID_BUSY)            return USBD_BUSY;
+    if (hhid == NULL || pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
+    if (hhid->kb_state == HID_BUSY) return USBD_BUSY;
 
     hhid->kb_state = HID_BUSY;
     USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
                      (uint8_t *)report, sizeof(HID_NKROReport_t));
-
     return USBD_OK;
 }
 
@@ -4467,29 +5971,35 @@ USBD_StatusTypeDef USBD_HID_SendRawReport(USBD_HandleTypeDef *pdev,
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
-
-    if (hhid == NULL)                          return USBD_FAIL;
-    if (pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
-    if (hhid->raw_state == HID_BUSY)           return USBD_BUSY;
+    if (hhid == NULL || pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
+    if (hhid->raw_state == HID_BUSY) return USBD_BUSY;
 
     hhid->raw_state = HID_BUSY;
     USBD_LL_Transmit(pdev, HID_RAW_EP_IN_ADDR, data, HID_RAW_EP_SIZE);
-
     return USBD_OK;
 }
 
 bool USBD_HID_RawDataAvailable(void)
 {
-    return s_raw_data_available;
+    return (bool)s_raw_data_available;
 }
 
 bool USBD_HID_GetRawData(uint8_t *buf)
 {
-    if (!s_raw_data_available) return false;
+    if (buf == NULL) return false;
+
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+
+    if (!s_raw_data_available) {
+        __set_PRIMASK(primask);
+        return false;
+    }
 
     memcpy(buf, s_raw_data_buf, HID_RAW_EP_SIZE);
     s_raw_data_available = false;
 
+    __set_PRIMASK(primask);
     return true;
 }
 
@@ -4497,11 +6007,16 @@ bool USBD_HID_KeyboardReady(USBD_HandleTypeDef *pdev)
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
-
-    if (hhid == NULL)                          return false;
-    if (pdev->dev_state != USBD_STATE_CONFIGURED) return false;
-
+    if (hhid == NULL || pdev->dev_state != USBD_STATE_CONFIGURED) return false;
     return (hhid->kb_state == HID_IDLE);
+}
+
+bool USBD_HID_IsSuspended(USBD_HandleTypeDef *pdev)
+{
+    USBD_HID_Custom_HandleTypeDef *hhid =
+        (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+    if (hhid == NULL) return false;
+    return hhid->suspended;
 }
 ```
 
@@ -4531,6 +6046,10 @@ extern "C" {
 
 #define HID_PROTOCOL_BOOT       0x00U
 #define HID_PROTOCOL_REPORT     0x01U
+
+#define HID_REPORT_TYPE_INPUT   0x01U
+#define HID_REPORT_TYPE_OUTPUT  0x02U
+#define HID_REPORT_TYPE_FEATURE 0x03U
 
 #ifndef USB_REQ_TYPE_STANDARD
 #define USB_REQ_TYPE_STANDARD   0x00U
@@ -4565,6 +6084,7 @@ extern "C" {
 
 #define HID_REPORT_ID_KEYBOARD          0x01U
 #define HID_REPORT_ID_NKRO              0x02U
+#define HID_REPORT_ID_SYSTEM            0x03U
 
 typedef struct {
     uint8_t report_id;
@@ -4585,19 +6105,22 @@ typedef struct {
 } __attribute__((packed)) HID_RawPacket_t;
 
 typedef enum {
-    HID_IDLE    = 0x00U,
-    HID_BUSY    = 0x01U
+    HID_IDLE = 0x00U,
+    HID_BUSY = 0x01U,
 } HID_StateTypeDef;
 
 typedef struct {
-    HID_StateTypeDef kb_state;
-    HID_StateTypeDef raw_state;
-    uint8_t          raw_rx_buf[HID_RAW_EP_SIZE];
+    HID_StateTypeDef    kb_state;
+    HID_StateTypeDef    raw_state;
 
-    uint8_t          protocol;
+    uint8_t             protocol;
+    uint8_t             idle_rate;
+    bool                kb_report_pending;
 
-    uint8_t          idle_rate;
-    bool             kb_report_pending;
+    uint8_t             led_report_buf[2];
+    uint8_t             led_report_len;
+
+    volatile bool       suspended;
 } USBD_HID_Custom_HandleTypeDef;
 
 #define HID_CUSTOM_CONFIG_DESC_SIZE     66U
@@ -4607,6 +6130,9 @@ extern USBD_ClassTypeDef USBD_HID_Custom;
 USBD_StatusTypeDef USBD_HID_SendKeyboardReport(USBD_HandleTypeDef *pdev,
                                                 HID_KeyboardReport_t *report);
 
+USBD_StatusTypeDef USBD_HID_SendSystemReport(USBD_HandleTypeDef *pdev,
+                                              uint8_t usage);
+
 USBD_StatusTypeDef USBD_HID_SendNKROReport(USBD_HandleTypeDef *pdev,
                                             HID_NKROReport_t *report);
 
@@ -4614,10 +6140,9 @@ USBD_StatusTypeDef USBD_HID_SendRawReport(USBD_HandleTypeDef *pdev,
                                            uint8_t *data);
 
 bool USBD_HID_RawDataAvailable(void);
-
 bool USBD_HID_GetRawData(uint8_t *buf);
-
 bool USBD_HID_KeyboardReady(USBD_HandleTypeDef *pdev);
+bool USBD_HID_IsSuspended(USBD_HandleTypeDef *pdev);
 
 #ifdef __cplusplus
 }
@@ -4739,16 +6264,16 @@ static void PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 #endif
 {
+  USBD_HandleTypeDef *pdev = (USBD_HandleTypeDef*)hpcd->pData;
 
-  USBD_LL_Suspend((USBD_HandleTypeDef*)hpcd->pData);
+  USBD_LL_Suspend(pdev);
   __HAL_PCD_GATE_PHYCLOCK(hpcd);
 
-  if (hpcd->Init.low_power_enable)
-  {
-
-    SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
+  USBD_HID_Custom_HandleTypeDef *hhid =
+      (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+  if (hhid != NULL) {
+      hhid->suspended = true;
   }
-
 }
 
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
@@ -4757,8 +6282,15 @@ static void PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 #endif
 {
+  USBD_HandleTypeDef *pdev = (USBD_HandleTypeDef*)hpcd->pData;
 
-  USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
+  USBD_LL_Resume(pdev);
+
+  USBD_HID_Custom_HandleTypeDef *hhid =
+      (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
+  if (hhid != NULL) {
+      hhid->suspended = false;
+  }
 }
 
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
@@ -5109,5 +6641,5 @@ void USBD_static_free(void *p);
 ```
 
 ----------------------------------------
-📊 Tổng: 45 file, ~4864 dòng (đã loại bỏ comment)
+📊 Tổng: 53 file, ~6356 dòng (đã loại bỏ comment)
 ----------------------------------------

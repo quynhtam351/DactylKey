@@ -7,22 +7,8 @@ extern "C" {
 
 #include <stdint.h>
 
-/*
- * Keycode Format (16-bit):
- * ┌─────────────────────────────────────────────┐
- * │ Bits [15:12] = Type                         │
- * │ Bits [11:0]  = Data                         │
- * └─────────────────────────────────────────────┘
- *
- * Type 0x0: Basic HID keycode (0x00-0xFF)
- * Type 0x1: Layer action
- * Type 0x2: Modifier + key combo
- * Type 0xF: Special (TRANSPARENT, NOOP)
- */
-
 typedef uint16_t keycode_t;
 
-/* ─── Type extraction macros ─── */
 #define KC_TYPE(kc)             (((kc) >> 12) & 0x0F)
 #define KC_DATA(kc)             ((kc) & 0x0FFF)
 
@@ -32,15 +18,13 @@ typedef uint16_t keycode_t;
 #define KC_TYPE_MACRO           0x3
 #define KC_TYPE_SYSTEM          0x4
 #define KC_TYPE_TAP_HOLD        0x5
+#define KC_TYPE_MEDIA           0x6
 #define KC_TYPE_SPECIAL         0xF
 
-/* ─── Special keycodes ─── */
 #define KC_NO                   0x0000
 #define KC_TRANSPARENT          0xF000
 #define KC_TRNS                 KC_TRANSPARENT
 
-/* ─── Basic HID Keycodes (USB HID Usage Table) ─── */
-/* Letters */
 #define KC_A                    0x0004
 #define KC_B                    0x0005
 #define KC_C                    0x0006
@@ -68,7 +52,6 @@ typedef uint16_t keycode_t;
 #define KC_Y                    0x001C
 #define KC_Z                    0x001D
 
-/* Numbers */
 #define KC_1                    0x001E
 #define KC_2                    0x001F
 #define KC_3                    0x0020
@@ -80,7 +63,6 @@ typedef uint16_t keycode_t;
 #define KC_9                    0x0026
 #define KC_0                    0x0027
 
-/* Control keys */
 #define KC_ENTER                0x0028
 #define KC_ENT                  KC_ENTER
 #define KC_ESCAPE               0x0029
@@ -91,7 +73,6 @@ typedef uint16_t keycode_t;
 #define KC_SPACE                0x002C
 #define KC_SPC                  KC_SPACE
 
-/* Symbols */
 #define KC_MINUS                0x002D
 #define KC_EQUAL                0x002E
 #define KC_LBRACKET             0x002F
@@ -104,7 +85,6 @@ typedef uint16_t keycode_t;
 #define KC_DOT                  0x0037
 #define KC_SLASH                0x0038
 
-/* Function keys */
 #define KC_CAPSLOCK             0x0039
 #define KC_F1                   0x003A
 #define KC_F2                   0x003B
@@ -119,7 +99,6 @@ typedef uint16_t keycode_t;
 #define KC_F11                  0x0044
 #define KC_F12                  0x0045
 
-/* Navigation */
 #define KC_PRINTSCREEN          0x0046
 #define KC_SCROLLLOCK           0x0047
 #define KC_PAUSE                0x0048
@@ -135,7 +114,6 @@ typedef uint16_t keycode_t;
 #define KC_DOWN                 0x0051
 #define KC_UP                   0x0052
 
-/* Modifiers (HID usage codes) */
 #define KC_LCTRL                0x00E0
 #define KC_LSHIFT               0x00E1
 #define KC_LSFT                 KC_LSHIFT
@@ -147,7 +125,6 @@ typedef uint16_t keycode_t;
 #define KC_RALT                 0x00E6
 #define KC_RGUI                 0x00E7
 
-/* ─── Modifier bitmask (for HID report byte 0) ─── */
 #define MOD_BIT_LCTRL           0x01
 #define MOD_BIT_LSHIFT          0x02
 #define MOD_BIT_LALT            0x04
@@ -157,24 +134,73 @@ typedef uint16_t keycode_t;
 #define MOD_BIT_RALT            0x40
 #define MOD_BIT_RGUI            0x80
 
-/* ─── Layer action macros ─── */
-/* MO(layer) - Momentary: active while held */
-#define MO(layer)               (0x1000 | (0x0 << 8) | ((layer) & 0x0F) << 4)
-/* TG(layer) - Toggle: toggle on/off */
-#define TG(layer)               (0x1000 | (0x1 << 8) | ((layer) & 0x0F) << 4)
-/* DF(layer) - Default: set default layer */
-#define DF(layer)               (0x1000 | (0x2 << 8) | ((layer) & 0x0F) << 4)
+#define MO(layer)               (0x1000 | (0x0 << 8) | (((layer) & 0x0F) << 4))
+#define TG(layer)               (0x1000 | (0x1 << 8) | (((layer) & 0x0F) << 4))
+#define DF(layer)               (0x1000 | (0x2 << 8) | (((layer) & 0x0F) << 4))
+#define TT(layer)               (0x1000 | (0x3 << 8) | (((layer) & 0x0F) << 4))
 
-/* ─── Helper: Is this a modifier keycode? ─── */
+#define LAYER_ACTION(kc)        (((KC_DATA(kc)) >> 8) & 0x0FU)
+#define LAYER_TARGET(kc)        (((KC_DATA(kc)) >> 4) & 0x0FU)
+
+#define LAYER_ACTION_MO         0x0U
+#define LAYER_ACTION_TG         0x1U
+#define LAYER_ACTION_DF         0x2U
+#define LAYER_ACTION_TT         0x3U
+
 #define IS_MODIFIER(kc)         (KC_DATA(kc) >= 0xE0 && KC_DATA(kc) <= 0xE7)
 #define MODIFIER_BIT(kc)        (1U << (KC_DATA(kc) - 0xE0))
 
-/* ─── Helper: Is this a basic printable key? ─── */
 #define IS_BASIC_KEY(kc)        (KC_TYPE(kc) == KC_TYPE_BASIC && \
                                  KC_DATA(kc) >= 0x04 && KC_DATA(kc) <= 0xDF)
+
+/* ── Media / Consumer Control Keycodes ── */
+
+#define MC(usage)               ((keycode_t)(((uint16_t)KC_TYPE_MEDIA << 12U) \
+                                              | ((usage) & 0x0FFFU)))
+
+/* Transport Controls */
+#define MC_PLAY_PAUSE           MC(0x00CD)
+#define MC_STOP                 MC(0x00B7)
+#define MC_NEXT_TRACK           MC(0x00B5)
+#define MC_PREV_TRACK           MC(0x00B6)
+#define MC_FAST_FORWARD         MC(0x00B3)
+#define MC_REWIND               MC(0x00B4)
+#define MC_RECORD               MC(0x00B2)
+#define MC_EJECT                MC(0x00B8)
+
+/* Volume */
+#define MC_VOLUME_UP            MC(0x00E9)
+#define MC_VOLUME_DOWN          MC(0x00EA)
+#define MC_MUTE                 MC(0x00E2)
+
+/* Application Launch */
+#define MC_AL_EMAIL             MC(0x018A)
+#define MC_AL_CALCULATOR        MC(0x0192)
+#define MC_AL_MY_COMPUTER       MC(0x0194)
+#define MC_AL_BROWSER           MC(0x0196)
+#define MC_AL_MEDIA_SELECT      MC(0x0183)
+
+/* Application Control */
+#define MC_AL_SEARCH            MC(0x0221)
+#define MC_AL_HOME              MC(0x0223)
+#define MC_AL_BACK              MC(0x0224)
+#define MC_AL_FORWARD           MC(0x0225)
+#define MC_AL_STOP              MC(0x0226)
+#define MC_AL_REFRESH           MC(0x0227)
+#define MC_AL_BOOKMARKS         MC(0x022A)
+
+/* Brightness */
+#define MC_BRIGHTNESS_UP        MC(0x006F)
+#define MC_BRIGHTNESS_DOWN      MC(0x0070)
+
+/* ── Force Auto Shift keycode wrapper ── */
+
+#define KC_AS(kc)               ((keycode_t)(0xF100U | ((kc) & 0x00FFU)))
+#define IS_FORCE_AUTOSHIFT(kc)  (((kc) & 0xFF00U) == 0xF100U)
+#define AS_BASE_KC(kc)          ((keycode_t)((kc) & 0x00FFU))
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __KEYCODE_DEFS_H */
+#endif

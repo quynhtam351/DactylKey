@@ -1,2 +1,5 @@
-../Core/Src/hid_reporter.c:33:6:HIDReporter_Init	8	static
-../Core/Src/hid_reporter.c:42:6:HIDReporter_SendIfChanged	24	static
+../Core/Src/hid_reporter.c:23:6:HIDReporter_Init	8	static
+../Core/Src/hid_reporter.c:41:13:_SendKeyboardReport	24	static
+../Core/Src/hid_reporter.c:73:13:_SendSystemReport	24	static
+../Core/Src/hid_reporter.c:94:6:HIDReporter_SendMediaIfChanged	24	static
+../Core/Src/hid_reporter.c:117:6:HIDReporter_SendIfChanged	16	static

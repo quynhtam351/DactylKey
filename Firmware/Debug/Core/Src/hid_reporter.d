@@ -36,7 +36,7 @@ Core/Src/hid_reporter.o: ../Core/Src/hid_reporter.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h \
  ../Core/Inc/key_processor.h ../Core/Inc/matrix_driver.h \
  ../Core/Inc/main.h ../Core/Inc/keyboard_config.h \
- ../Core/Inc/keycode_defs.h
+ ../Core/Inc/keycode_defs.h ../Core/Inc/media_keys.h
 ../Core/Inc/hid_reporter.h:
 ../USB_DEVICE/App/usbd_hid_custom.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
@@ -79,3 +79,4 @@ Core/Src/hid_reporter.o: ../Core/Src/hid_reporter.c \
 ../Core/Inc/main.h:
 ../Core/Inc/keyboard_config.h:
 ../Core/Inc/keycode_defs.h:
+../Core/Inc/media_keys.h:

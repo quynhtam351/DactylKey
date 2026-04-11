@@ -60,6 +60,8 @@ extern "C" {
 
 #define HID_REPORT_ID_KEYBOARD          0x01U
 #define HID_REPORT_ID_NKRO             0x02U
+#define HID_REPORT_ID_SYSTEM           0x03U
+#define HID_REPORT_ID_CONSUMER         0x04U
 
 typedef struct {
     uint8_t report_id;
@@ -75,34 +77,32 @@ typedef struct {
 } __attribute__((packed)) HID_NKROReport_t;
 
 typedef struct {
+    uint8_t  report_id;
+    uint16_t usage_id;
+} __attribute__((packed)) HID_ConsumerReport_t;
+
+typedef struct {
     uint8_t command;
     uint8_t data[31];
 } __attribute__((packed)) HID_RawPacket_t;
 
 typedef enum {
-    HID_IDLE    = 0x00U,
-    HID_BUSY    = 0x01U
+    HID_IDLE = 0x00U,
+    HID_BUSY = 0x01U,
 } HID_StateTypeDef;
 
 typedef struct {
-    HID_StateTypeDef kb_state;
-    HID_StateTypeDef raw_state;
-    uint8_t          raw_rx_buf[HID_RAW_EP_SIZE];
+    HID_StateTypeDef    kb_state;
+    HID_StateTypeDef    raw_state;
 
-    uint8_t          protocol;
-    uint8_t          idle_rate;
-    bool             kb_report_pending;
+    uint8_t             protocol;
+    uint8_t             idle_rate;
+    bool                kb_report_pending;
 
-    /* LED Output report buffer for EP0 data phase */
-    uint8_t          led_report_buf[2];
-    uint8_t          led_report_len;
+    uint8_t             led_report_buf[2];
+    uint8_t             led_report_len;
 
-    /*
-     * USB suspend flag.
-     * Set in SuspendCallback, cleared in ResumeCallback.
-     * Used by main loop to reduce power and trigger remote wakeup.
-     */
-    volatile bool    suspended;
+    volatile bool       suspended;
 } USBD_HID_Custom_HandleTypeDef;
 
 #define HID_CUSTOM_CONFIG_DESC_SIZE     66U
@@ -112,8 +112,14 @@ extern USBD_ClassTypeDef USBD_HID_Custom;
 USBD_StatusTypeDef USBD_HID_SendKeyboardReport(USBD_HandleTypeDef *pdev,
                                                 HID_KeyboardReport_t *report);
 
+USBD_StatusTypeDef USBD_HID_SendSystemReport(USBD_HandleTypeDef *pdev,
+                                              uint8_t usage);
+
 USBD_StatusTypeDef USBD_HID_SendNKROReport(USBD_HandleTypeDef *pdev,
                                             HID_NKROReport_t *report);
+
+USBD_StatusTypeDef USBD_HID_SendConsumerReport(USBD_HandleTypeDef *pdev,
+                                                uint16_t usage_id);
 
 USBD_StatusTypeDef USBD_HID_SendRawReport(USBD_HandleTypeDef *pdev,
                                            uint8_t *data);

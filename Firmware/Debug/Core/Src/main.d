@@ -40,7 +40,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/keyboard_config.h ../Core/Inc/key_processor.h \
  ../Core/Inc/matrix_driver.h ../Core/Inc/keycode_defs.h \
  ../Core/Inc/hid_reporter.h ../Core/Inc/split_comm.h \
- ../Core/Inc/led_manager.h ../Core/Inc/iwdg.h
+ ../Core/Inc/led_manager.h ../Core/Inc/flash_keymap.h \
+ ../Core/Inc/macro_engine.h ../Core/Inc/tap_hold.h \
+ ../Core/Inc/auto_shift.h ../Core/Inc/media_keys.h ../Core/Inc/raw_hid.h \
+ ../Core/Inc/flash_keymap.h ../Core/Inc/iwdg.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -94,4 +97,11 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/hid_reporter.h:
 ../Core/Inc/split_comm.h:
 ../Core/Inc/led_manager.h:
+../Core/Inc/flash_keymap.h:
+../Core/Inc/macro_engine.h:
+../Core/Inc/tap_hold.h:
+../Core/Inc/auto_shift.h:
+../Core/Inc/media_keys.h:
+../Core/Inc/raw_hid.h:
+../Core/Inc/flash_keymap.h:
 ../Core/Inc/iwdg.h:

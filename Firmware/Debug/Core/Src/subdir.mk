@@ -5,15 +5,20 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/auto_shift.c \
 ../Core/Src/crc16.c \
 ../Core/Src/dma.c \
+../Core/Src/flash_keymap.c \
 ../Core/Src/gpio.c \
 ../Core/Src/hid_reporter.c \
 ../Core/Src/iwdg.c \
 ../Core/Src/key_processor.c \
 ../Core/Src/led_manager.c \
+../Core/Src/macro_engine.c \
 ../Core/Src/main.c \
 ../Core/Src/matrix_driver.c \
+../Core/Src/media_keys.c \
+../Core/Src/raw_hid.c \
 ../Core/Src/split_comm.c \
 ../Core/Src/stm32f4xx_hal_msp.c \
 ../Core/Src/stm32f4xx_hal_timebase_tim.c \
@@ -21,20 +26,26 @@ C_SRCS += \
 ../Core/Src/syscalls.c \
 ../Core/Src/sysmem.c \
 ../Core/Src/system_stm32f4xx.c \
+../Core/Src/tap_hold.c \
 ../Core/Src/tim.c \
 ../Core/Src/usart.c \
 ../Core/Src/usb_otg.c 
 
 OBJS += \
+./Core/Src/auto_shift.o \
 ./Core/Src/crc16.o \
 ./Core/Src/dma.o \
+./Core/Src/flash_keymap.o \
 ./Core/Src/gpio.o \
 ./Core/Src/hid_reporter.o \
 ./Core/Src/iwdg.o \
 ./Core/Src/key_processor.o \
 ./Core/Src/led_manager.o \
+./Core/Src/macro_engine.o \
 ./Core/Src/main.o \
 ./Core/Src/matrix_driver.o \
+./Core/Src/media_keys.o \
+./Core/Src/raw_hid.o \
 ./Core/Src/split_comm.o \
 ./Core/Src/stm32f4xx_hal_msp.o \
 ./Core/Src/stm32f4xx_hal_timebase_tim.o \
@@ -42,20 +53,26 @@ OBJS += \
 ./Core/Src/syscalls.o \
 ./Core/Src/sysmem.o \
 ./Core/Src/system_stm32f4xx.o \
+./Core/Src/tap_hold.o \
 ./Core/Src/tim.o \
 ./Core/Src/usart.o \
 ./Core/Src/usb_otg.o 
 
 C_DEPS += \
+./Core/Src/auto_shift.d \
 ./Core/Src/crc16.d \
 ./Core/Src/dma.d \
+./Core/Src/flash_keymap.d \
 ./Core/Src/gpio.d \
 ./Core/Src/hid_reporter.d \
 ./Core/Src/iwdg.d \
 ./Core/Src/key_processor.d \
 ./Core/Src/led_manager.d \
+./Core/Src/macro_engine.d \
 ./Core/Src/main.d \
 ./Core/Src/matrix_driver.d \
+./Core/Src/media_keys.d \
+./Core/Src/raw_hid.d \
 ./Core/Src/split_comm.d \
 ./Core/Src/stm32f4xx_hal_msp.d \
 ./Core/Src/stm32f4xx_hal_timebase_tim.d \
@@ -63,6 +80,7 @@ C_DEPS += \
 ./Core/Src/syscalls.d \
 ./Core/Src/sysmem.d \
 ./Core/Src/system_stm32f4xx.d \
+./Core/Src/tap_hold.d \
 ./Core/Src/tim.d \
 ./Core/Src/usart.d \
 ./Core/Src/usb_otg.d 
@@ -75,7 +93,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/crc16.cyclo ./Core/Src/crc16.d ./Core/Src/crc16.o ./Core/Src/crc16.su ./Core/Src/dma.cyclo ./Core/Src/dma.d ./Core/Src/dma.o ./Core/Src/dma.su ./Core/Src/gpio.cyclo ./Core/Src/gpio.d ./Core/Src/gpio.o ./Core/Src/gpio.su ./Core/Src/hid_reporter.cyclo ./Core/Src/hid_reporter.d ./Core/Src/hid_reporter.o ./Core/Src/hid_reporter.su ./Core/Src/iwdg.cyclo ./Core/Src/iwdg.d ./Core/Src/iwdg.o ./Core/Src/iwdg.su ./Core/Src/key_processor.cyclo ./Core/Src/key_processor.d ./Core/Src/key_processor.o ./Core/Src/key_processor.su ./Core/Src/led_manager.cyclo ./Core/Src/led_manager.d ./Core/Src/led_manager.o ./Core/Src/led_manager.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/matrix_driver.cyclo ./Core/Src/matrix_driver.d ./Core/Src/matrix_driver.o ./Core/Src/matrix_driver.su ./Core/Src/split_comm.cyclo ./Core/Src/split_comm.d ./Core/Src/split_comm.o ./Core/Src/split_comm.su ./Core/Src/stm32f4xx_hal_msp.cyclo ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_hal_timebase_tim.cyclo ./Core/Src/stm32f4xx_hal_timebase_tim.d ./Core/Src/stm32f4xx_hal_timebase_tim.o ./Core/Src/stm32f4xx_hal_timebase_tim.su ./Core/Src/stm32f4xx_it.cyclo ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.cyclo ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su ./Core/Src/tim.cyclo ./Core/Src/tim.d ./Core/Src/tim.o ./Core/Src/tim.su ./Core/Src/usart.cyclo ./Core/Src/usart.d ./Core/Src/usart.o ./Core/Src/usart.su ./Core/Src/usb_otg.cyclo ./Core/Src/usb_otg.d ./Core/Src/usb_otg.o ./Core/Src/usb_otg.su
+	-$(RM) ./Core/Src/auto_shift.cyclo ./Core/Src/auto_shift.d ./Core/Src/auto_shift.o ./Core/Src/auto_shift.su ./Core/Src/crc16.cyclo ./Core/Src/crc16.d ./Core/Src/crc16.o ./Core/Src/crc16.su ./Core/Src/dma.cyclo ./Core/Src/dma.d ./Core/Src/dma.o ./Core/Src/dma.su ./Core/Src/flash_keymap.cyclo ./Core/Src/flash_keymap.d ./Core/Src/flash_keymap.o ./Core/Src/flash_keymap.su ./Core/Src/gpio.cyclo ./Core/Src/gpio.d ./Core/Src/gpio.o ./Core/Src/gpio.su ./Core/Src/hid_reporter.cyclo ./Core/Src/hid_reporter.d ./Core/Src/hid_reporter.o ./Core/Src/hid_reporter.su ./Core/Src/iwdg.cyclo ./Core/Src/iwdg.d ./Core/Src/iwdg.o ./Core/Src/iwdg.su ./Core/Src/key_processor.cyclo ./Core/Src/key_processor.d ./Core/Src/key_processor.o ./Core/Src/key_processor.su ./Core/Src/led_manager.cyclo ./Core/Src/led_manager.d ./Core/Src/led_manager.o ./Core/Src/led_manager.su ./Core/Src/macro_engine.cyclo ./Core/Src/macro_engine.d ./Core/Src/macro_engine.o ./Core/Src/macro_engine.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/matrix_driver.cyclo ./Core/Src/matrix_driver.d ./Core/Src/matrix_driver.o ./Core/Src/matrix_driver.su ./Core/Src/media_keys.cyclo ./Core/Src/media_keys.d ./Core/Src/media_keys.o ./Core/Src/media_keys.su ./Core/Src/raw_hid.cyclo ./Core/Src/raw_hid.d ./Core/Src/raw_hid.o ./Core/Src/raw_hid.su ./Core/Src/split_comm.cyclo ./Core/Src/split_comm.d ./Core/Src/split_comm.o ./Core/Src/split_comm.su ./Core/Src/stm32f4xx_hal_msp.cyclo ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_hal_timebase_tim.cyclo ./Core/Src/stm32f4xx_hal_timebase_tim.d ./Core/Src/stm32f4xx_hal_timebase_tim.o ./Core/Src/stm32f4xx_hal_timebase_tim.su ./Core/Src/stm32f4xx_it.cyclo ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.cyclo ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su ./Core/Src/tap_hold.cyclo ./Core/Src/tap_hold.d ./Core/Src/tap_hold.o ./Core/Src/tap_hold.su ./Core/Src/tim.cyclo ./Core/Src/tim.d ./Core/Src/tim.o ./Core/Src/tim.su ./Core/Src/usart.cyclo ./Core/Src/usart.d ./Core/Src/usart.o ./Core/Src/usart.su ./Core/Src/usb_otg.cyclo ./Core/Src/usb_otg.d ./Core/Src/usb_otg.o ./Core/Src/usb_otg.su
 
 .PHONY: clean-Core-2f-Src
 

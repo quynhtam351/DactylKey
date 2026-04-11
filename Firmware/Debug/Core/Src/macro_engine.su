@@ -1,0 +1,9 @@
+../Core/Src/macro_engine.c:26:6:MacroEngine_Init	8	static
+../Core/Src/macro_engine.c:33:6:MacroEngine_Trigger	16	static
+../Core/Src/macro_engine.c:50:6:MacroEngine_Process	32	static
+../Core/Src/macro_engine.c:132:6:MacroEngine_IsBusy	4	static
+../Core/Src/macro_engine.c:137:6:MacroEngine_SetMacro	24	static
+../Core/Src/macro_engine.c:153:6:MacroEngine_GetMacro	32	static
+../Core/Src/macro_engine.c:165:6:MacroEngine_LoadFromFlash	24	static
+../Core/Src/macro_engine.c:182:10:MacroEngine_SerializeToBuffer	24	static
+../Core/Src/macro_engine.c:195:13:_InjectKey	16	static

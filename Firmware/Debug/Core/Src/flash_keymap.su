@@ -1,0 +1,15 @@
+../Core/Src/flash_keymap.c:30:13:_Flash_Unlock	8	static
+../Core/Src/flash_keymap.c:35:13:_Flash_Lock	8	static
+../Core/Src/flash_keymap.c:40:13:_Flash_EraseSector5	32	static
+../Core/Src/flash_keymap.c:52:13:_Flash_WriteBuffer	40	static
+../Core/Src/flash_keymap.c:70:17:_CalcHeaderCRC	24	static
+../Core/Src/flash_keymap.c:83:13:_UseDefaults	4	static
+../Core/Src/flash_keymap.c:99:13:_CopyFromFlashToRAM	24	static
+../Core/Src/flash_keymap.c:122:6:FlashKeymap_Init	16	static
+../Core/Src/flash_keymap.c:154:18:FlashKeymap_GetLeft	16	static
+../Core/Src/flash_keymap.c:160:18:FlashKeymap_GetRight	16	static
+../Core/Src/flash_keymap.c:170:6:FlashKeymap_StagePage	32	static
+../Core/Src/flash_keymap.c:193:6:FlashKeymap_Commit	320	static
+../Core/Src/flash_keymap.c:250:6:FlashKeymap_Reset	16	static
+../Core/Src/flash_keymap.c:268:6:FlashKeymap_GetPage	168	static
+../Core/Src/flash_keymap.c:311:6:FlashKeymap_IsDirty	4	static

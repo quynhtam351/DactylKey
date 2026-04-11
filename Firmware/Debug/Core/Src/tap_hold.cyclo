@@ -1,0 +1,11 @@
+../Core/Src/tap_hold.c:11:6:TapHold_Init	1
+../Core/Src/tap_hold.c:19:6:TapHold_SetEntry	2
+../Core/Src/tap_hold.c:27:6:TapHold_GetEntry	3
+../Core/Src/tap_hold.c:34:6:TapHold_RegisterCallback	1
+../Core/Src/tap_hold.c:39:6:TapHold_HandlePress	3
+../Core/Src/tap_hold.c:56:6:TapHold_HandleRelease	9
+../Core/Src/tap_hold.c:83:6:TapHold_NotifyOtherKeyPress	2
+../Core/Src/tap_hold.c:90:6:TapHold_Process	3
+../Core/Src/tap_hold.c:100:6:TapHold_IsPending	3
+../Core/Src/tap_hold.c:107:9:TapHold_GetPendingKeyIndex	1
+../Core/Src/tap_hold.c:112:13:_Resolve	4

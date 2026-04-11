@@ -1,55 +1,31 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file    iwdg.c
-  * @brief   This file provides code for the configuration
-  *          of the IWDG instances.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
 #include "iwdg.h"
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 IWDG_HandleTypeDef hiwdg;
 
-/* IWDG init function */
 void MX_IWDG_Init(void)
 {
+    /*
+     * BUG#7 fix: Flash sector erase (128KB) có thể mất đến ~2s trên
+     * STM32F401 (datasheet: typ 1s, max 4s). Trong thời gian erase,
+     * CPU bị stall — không thể refresh IWDG.
+     *
+     * Cần timeout > 4s để an toàn:
+     * Timeout = (Prescaler × Reload) / LSI_freq
+     *         = (256 × 4000)  / 32000
+     *         = 32s   ← đủ dư cho Flash erase tệ nhất
+     *
+     * Prescaler 256 = IWDG_PRESCALER_256
+     * Reload    4000
+     * LSI       ~32kHz (±30%, min ~22kHz → worst case: 256×4000/22000 ≈ 46s)
+     *
+     * Trong normal operation, main loop refresh IWDG mỗi vòng lặp
+     * (< 1ms) → không bao giờ timeout trừ khi firmware hang.
+     */
+    hiwdg.Instance       = IWDG;
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
+    hiwdg.Init.Reload    = 4000U;
 
-  /* USER CODE BEGIN IWDG_Init 0 */
-
-  /* USER CODE END IWDG_Init 0 */
-
-  /* USER CODE BEGIN IWDG_Init 1 */
-
-  /* USER CODE END IWDG_Init 1 */
-  hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_64;
-  hiwdg.Init.Reload = 2000;
-  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN IWDG_Init 2 */
-
-  /* USER CODE END IWDG_Init 2 */
-
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK) {
+        Error_Handler();
+    }
 }
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */

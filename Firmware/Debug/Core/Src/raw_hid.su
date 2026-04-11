@@ -1,0 +1,4 @@
+../Drivers/CMSIS/Include/core_cm4.h:1938:34:__NVIC_SystemReset	4	static,ignoring_inline_asm
+../Core/Src/raw_hid.c:27:6:RawHID_Init	4	static
+../Core/Src/raw_hid.c:31:6:RawHID_Process	456	static
+../Core/Src/raw_hid.c:214:13:_SendResponse	32	static

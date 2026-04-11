@@ -40,7 +40,8 @@ USB_DEVICE/App/usbd_hid_custom.o: ../USB_DEVICE/App/usbd_hid_custom.c \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
- ../USB_DEVICE/App/usbd_desc.h
+ ../USB_DEVICE/App/usbd_desc.h ../Core/Inc/led_manager.h \
+ ../Core/Inc/keyboard_config.h
 ../USB_DEVICE/App/usbd_hid_custom.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
 ../USB_DEVICE/Target/usbd_conf.h:
@@ -84,3 +85,5 @@ USB_DEVICE/App/usbd_hid_custom.o: ../USB_DEVICE/App/usbd_hid_custom.c \
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
 ../USB_DEVICE/App/usbd_desc.h:
+../Core/Inc/led_manager.h:
+../Core/Inc/keyboard_config.h:
