@@ -4,6 +4,7 @@
 "./Core/Src/hid_reporter.o"
 "./Core/Src/iwdg.o"
 "./Core/Src/key_processor.o"
+"./Core/Src/led_manager.o"
 "./Core/Src/main.o"
 "./Core/Src/matrix_driver.o"
 "./Core/Src/split_comm.o"

@@ -1,2 +1,2 @@
-../Core/Src/hid_reporter.c:8:6:HIDReporter_Init	1
-../Core/Src/hid_reporter.c:17:6:HIDReporter_SendIfChanged	4
+../Core/Src/hid_reporter.c:33:6:HIDReporter_Init	1
+../Core/Src/hid_reporter.c:42:6:HIDReporter_SendIfChanged	5

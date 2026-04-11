@@ -1,293 +1,121 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file    stm32f4xx_it.c
-  * @brief   Interrupt Service Routines.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_it.h"
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-/* USER CODE END Includes */
+#include "split_comm.h"
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN TD */
-
-/* USER CODE END TD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/* External variables --------------------------------------------------------*/
-extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
-extern TIM_HandleTypeDef htim2;
-extern DMA_HandleTypeDef hdma_usart1_rx;
-extern DMA_HandleTypeDef hdma_usart1_tx;
+extern PCD_HandleTypeDef  hpcd_USB_OTG_FS;
+extern TIM_HandleTypeDef  htim2;
+extern DMA_HandleTypeDef  hdma_usart1_rx;
+extern DMA_HandleTypeDef  hdma_usart1_tx;
 extern UART_HandleTypeDef huart1;
-extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef  htim5;
 
-/* USER CODE BEGIN EV */
+/* ── Cortex-M system exception handlers ──────────────────────── */
 
-/* USER CODE END EV */
-
-/******************************************************************************/
-/*           Cortex-M4 Processor Interruption and Exception Handlers          */
-/******************************************************************************/
-/**
-  * @brief This function handles Non maskable interrupt.
-  */
 void NMI_Handler(void)
 {
-  /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
-  /* USER CODE END NonMaskableInt_IRQn 0 */
-  /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
-   while (1)
-  {
-  }
-  /* USER CODE END NonMaskableInt_IRQn 1 */
+    while (1) { }
 }
 
-/**
-  * @brief This function handles Hard fault interrupt.
-  */
 void HardFault_Handler(void)
 {
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
+    /* IWDG will reset the system after ~4 seconds */
+    while (1) { }
 }
 
-/**
-  * @brief This function handles Memory management fault.
-  */
 void MemManage_Handler(void)
 {
-  /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
-  /* USER CODE END MemoryManagement_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
-    /* USER CODE END W1_MemoryManagement_IRQn 0 */
-  }
+    while (1) { }
 }
 
-/**
-  * @brief This function handles Pre-fetch fault, memory access fault.
-  */
 void BusFault_Handler(void)
 {
-  /* USER CODE BEGIN BusFault_IRQn 0 */
-
-  /* USER CODE END BusFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_BusFault_IRQn 0 */
-    /* USER CODE END W1_BusFault_IRQn 0 */
-  }
+    while (1) { }
 }
 
-/**
-  * @brief This function handles Undefined instruction or illegal state.
-  */
 void UsageFault_Handler(void)
 {
-  /* USER CODE BEGIN UsageFault_IRQn 0 */
-
-  /* USER CODE END UsageFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
-    /* USER CODE END W1_UsageFault_IRQn 0 */
-  }
+    while (1) { }
 }
 
-/**
-  * @brief This function handles System service call via SWI instruction.
-  */
 void SVC_Handler(void)
 {
-  /* USER CODE BEGIN SVCall_IRQn 0 */
-
-  /* USER CODE END SVCall_IRQn 0 */
-  /* USER CODE BEGIN SVCall_IRQn 1 */
-
-  /* USER CODE END SVCall_IRQn 1 */
 }
 
-/**
-  * @brief This function handles Debug monitor.
-  */
 void DebugMon_Handler(void)
 {
-  /* USER CODE BEGIN DebugMonitor_IRQn 0 */
-
-  /* USER CODE END DebugMonitor_IRQn 0 */
-  /* USER CODE BEGIN DebugMonitor_IRQn 1 */
-
-  /* USER CODE END DebugMonitor_IRQn 1 */
 }
 
-/**
-  * @brief This function handles Pendable request for system service.
-  */
 void PendSV_Handler(void)
 {
-  /* USER CODE BEGIN PendSV_IRQn 0 */
-
-  /* USER CODE END PendSV_IRQn 0 */
-  /* USER CODE BEGIN PendSV_IRQn 1 */
-
-  /* USER CODE END PendSV_IRQn 1 */
 }
 
-/**
-  * @brief This function handles System tick timer.
-  */
 void SysTick_Handler(void)
 {
-  /* USER CODE BEGIN SysTick_IRQn 0 */
-
-  /* USER CODE END SysTick_IRQn 0 */
-
-  /* USER CODE BEGIN SysTick_IRQn 1 */
-
-  /* USER CODE END SysTick_IRQn 1 */
+    /* SysTick is NOT used as HAL timebase (TIM5 is).
+     * This handler intentionally does nothing.
+     * HAL_IncTick() is called from TIM5_IRQHandler below. */
 }
 
-/******************************************************************************/
-/* STM32F4xx Peripheral Interrupt Handlers                                    */
-/* Add here the Interrupt Handlers for the used peripherals.                  */
-/* For the available peripheral interrupt handler names,                      */
-/* please refer to the startup file (startup_stm32f4xx.s).                    */
-/******************************************************************************/
+/* ── TIM2: Matrix scan (1ms period, priority 1) ──────────────── */
 
-/**
-  * @brief This function handles TIM2 global interrupt.
-  */
 void TIM2_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM2_IRQn 0 */
-
-  /* USER CODE END TIM2_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim2);
-  /* USER CODE BEGIN TIM2_IRQn 1 */
-
-  /* USER CODE END TIM2_IRQn 1 */
+    HAL_TIM_IRQHandler(&htim2);
 }
 
-/**
-  * @brief This function handles USART1 global interrupt.
-  */
+/* ── USART1: Split communication ──────────────────────────────── */
+
 void USART1_IRQHandler(void)
 {
-  /* USER CODE BEGIN USART1_IRQn 0 */
+    /*
+     * Check for IDLE line interrupt BEFORE calling HAL handler.
+     *
+     * Why: HAL_UART_IRQHandler() clears the IDLE flag internally in
+     * some configurations, which prevents our callback from seeing it.
+     * By checking and clearing the flag here first, we guarantee that
+     * SplitComm_UART_IdleCallback() is always called when IDLE fires.
+     *
+     * The IDLE interrupt is enabled in SplitComm_Init() via:
+     *   __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE)
+     *
+     * In our DMA circular RX setup, the IDLE callback itself only
+     * clears the flag (no data processing needed — we poll DMA NDTR
+     * in the main loop). Its primary value is as a hook for future
+     * use (e.g., triggering immediate processing of a partial packet).
+     */
+    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) &&
+        __HAL_UART_GET_IT_SOURCE(&huart1, UART_IT_IDLE))
+    {
+        SplitComm_UART_IdleCallback();
+    }
 
-  /* USER CODE END USART1_IRQn 0 */
-  HAL_UART_IRQHandler(&huart1);
-  /* USER CODE BEGIN USART1_IRQn 1 */
-
-  /* USER CODE END USART1_IRQn 1 */
+    HAL_UART_IRQHandler(&huart1);
 }
 
-/**
-  * @brief This function handles TIM5 global interrupt.
-  */
+/* ── TIM5: HAL timebase (1ms, priority 15) ───────────────────── */
+
 void TIM5_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM5_IRQn 0 */
-
-  /* USER CODE END TIM5_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim5);
-  /* USER CODE BEGIN TIM5_IRQn 1 */
-
-  /* USER CODE END TIM5_IRQn 1 */
+    HAL_TIM_IRQHandler(&htim5);
 }
 
-/**
-  * @brief This function handles DMA2 stream2 global interrupt.
-  */
+/* ── DMA2 Stream2: USART1 RX ─────────────────────────────────── */
+
 void DMA2_Stream2_IRQHandler(void)
 {
-  /* USER CODE BEGIN DMA2_Stream2_IRQn 0 */
-
-  /* USER CODE END DMA2_Stream2_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_usart1_rx);
-  /* USER CODE BEGIN DMA2_Stream2_IRQn 1 */
-
-  /* USER CODE END DMA2_Stream2_IRQn 1 */
+    HAL_DMA_IRQHandler(&hdma_usart1_rx);
 }
 
-/**
-  * @brief This function handles USB On The Go FS global interrupt.
-  */
+/* ── USB OTG FS ───────────────────────────────────────────────── */
+
 void OTG_FS_IRQHandler(void)
 {
-  /* USER CODE BEGIN OTG_FS_IRQn 0 */
-
-  /* USER CODE END OTG_FS_IRQn 0 */
-  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-  /* USER CODE BEGIN OTG_FS_IRQn 1 */
-
-  /* USER CODE END OTG_FS_IRQn 1 */
+    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 }
 
-/**
-  * @brief This function handles DMA2 stream7 global interrupt.
-  */
+/* ── DMA2 Stream7: USART1 TX ─────────────────────────────────── */
+
 void DMA2_Stream7_IRQHandler(void)
 {
-  /* USER CODE BEGIN DMA2_Stream7_IRQn 0 */
-
-  /* USER CODE END DMA2_Stream7_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_usart1_tx);
-  /* USER CODE BEGIN DMA2_Stream7_IRQn 1 */
-
-  /* USER CODE END DMA2_Stream7_IRQn 1 */
+    HAL_DMA_IRQHandler(&hdma_usart1_tx);
 }
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */

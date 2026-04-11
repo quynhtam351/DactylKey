@@ -1,0 +1,7 @@
+../Core/Src/led_manager.c:36:20:_SetLED	16	static
+../Core/Src/led_manager.c:44:6:LedManager_Init	8	static
+../Core/Src/led_manager.c:58:6:LedManager_SetStatusPattern	16	static
+../Core/Src/led_manager.c:68:6:LedManager_SetHIDLeds	16	static
+../Core/Src/led_manager.c:73:9:LedManager_GetHIDLeds	4	static
+../Core/Src/led_manager.c:78:6:LedManager_SetLayerState	16	static
+../Core/Src/led_manager.c:87:6:LedManager_Update	16	static

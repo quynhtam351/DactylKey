@@ -1,4 +1,6 @@
-../Core/Src/main.c:78:5:main	6
-../Core/Src/main.c:197:6:SystemClock_Config	3
-../Core/Src/main.c:250:6:HAL_TIM_PeriodElapsedCallback	3
-../Core/Src/main.c:271:6:Error_Handler	1
+../Core/Src/main.c:27:9:Role_Detect	6
+../Core/Src/main.c:60:5:main	10
+../Core/Src/main.c:165:13:Boot_IndicateRole	3
+../Core/Src/main.c:187:6:SystemClock_Config	3
+../Core/Src/main.c:218:6:HAL_TIM_PeriodElapsedCallback	3
+../Core/Src/main.c:229:6:Error_Handler	1

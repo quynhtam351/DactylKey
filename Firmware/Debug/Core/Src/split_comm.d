@@ -33,7 +33,8 @@ Core/Src/split_comm.o: ../Core/Src/split_comm.c ../Core/Inc/split_comm.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h \
  ../Core/Inc/matrix_driver.h ../Core/Inc/main.h ../Core/Inc/crc16.h \
- ../Core/Inc/usart.h
+ ../Core/Inc/usart.h ../Core/Inc/keyboard_config.h \
+ ../Core/Inc/led_manager.h
 ../Core/Inc/split_comm.h:
 ../Core/Inc/keyboard_config.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
@@ -72,3 +73,5 @@ Core/Src/split_comm.o: ../Core/Src/split_comm.c ../Core/Inc/split_comm.h \
 ../Core/Inc/main.h:
 ../Core/Inc/crc16.h:
 ../Core/Inc/usart.h:
+../Core/Inc/keyboard_config.h:
+../Core/Inc/led_manager.h:

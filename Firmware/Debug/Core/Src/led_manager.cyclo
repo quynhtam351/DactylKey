@@ -1,0 +1,7 @@
+../Core/Src/led_manager.c:36:20:_SetLED	1
+../Core/Src/led_manager.c:44:6:LedManager_Init	1
+../Core/Src/led_manager.c:58:6:LedManager_SetStatusPattern	2
+../Core/Src/led_manager.c:68:6:LedManager_SetHIDLeds	1
+../Core/Src/led_manager.c:73:9:LedManager_GetHIDLeds	1
+../Core/Src/led_manager.c:78:6:LedManager_SetLayerState	1
+../Core/Src/led_manager.c:87:6:LedManager_Update	8

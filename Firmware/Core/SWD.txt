@@ -1,0 +1,1825 @@
+BẢN THIẾT KẾ HỆ THỐNG BÀN PHÍM DACTYL ERGONOMIC SPLIT KEYBOARD
+Phiên bản: 1.0
+Ngày: 2025
+MỤC LỤC
+Tổng quan hệ thống
+Kiến trúc phần cứng
+Kiến trúc phần mềm
+Module chi tiết
+Giao thức truyền thông Split
+USB HID Interface
+Hệ thống Keymap và Layer
+Quản lý lỗi và Watchdog
+Sơ đồ luồng dữ liệu
+Cấu hình hệ thống
+1. TỔNG QUAN HỆ THỐNG
+1.1 Mô tả dự án
+Bàn phím Dactyl Ergonomic là bàn phím cơ chia đôi (split keyboard) sử dụng vi điều khiển STM32F401/F411 (dòng STM32F4xx). Hệ thống gồm hai nửa (Master - Left, Slave - Right) giao tiếp với nhau qua UART và kết nối với máy tính qua USB HID.
+
+1.2 Đặc điểm chính
+text
+
+┌─────────────────────────────────────────────────────────────┐
+│                    TÍNH NĂNG HỆ THỐNG                       │
+├─────────────────────────────────────────────────────────────┤
+│ • Split keyboard Master/Slave qua UART DMA                 │
+│ • USB HID Composite (Keyboard 6KRO + Raw HID)              │
+│ • Hỗ trợ tối đa 16 layer với MO/TG/DF                      │
+│ • Ma trận phím tối đa 8x6 mỗi nửa (hiện tại 4x4 demo)     │
+│ • Debounce phần mềm per-key                                │
+│ • CRC16 bảo vệ dữ liệu truyền thông                       │
+│ • Independent Watchdog (IWDG) chống treo                    │
+│ • LED chỉ thị trạng thái và layer                          │
+│ • Raw HID endpoint cho giao tiếp host software              │
+└─────────────────────────────────────────────────────────────┘
+1.3 Sơ đồ tổng quan hệ thống
+text
+
+┌──────────────────────────┐    UART 1Mbps     ┌──────────────────────────┐
+│     MASTER (LEFT)        │◄─────────────────►│      SLAVE (RIGHT)       │
+│                          │   DMA Circular     │                          │
+│  ┌────────────────────┐  │                    │  ┌────────────────────┐  │
+│  │  Matrix 4x4 (Left) │  │                    │  │ Matrix 4x4 (Right) │  │
+│  └────────┬───────────┘  │                    │  └────────┬───────────┘  │
+│           │              │                    │           │              │
+│  ┌────────▼───────────┐  │                    │  ┌────────▼───────────┐  │
+│  │  Matrix Driver     │  │                    │  │  Matrix Driver     │  │
+│  │  (Scan+Debounce)   │  │                    │  │  (Scan+Debounce)   │  │
+│  └────────┬───────────┘  │                    │  └────────┬───────────┘  │
+│           │              │                    │           │              │
+│  ┌────────▼───────────┐  │   ┌────────────┐  │  ┌────────▼───────────┐  │
+│  │  Key Processor     │◄─┼───┤ Split Comm ├──┼──┤  Event Forward     │  │
+│  │  (Keymap/Layer)    │  │   └────────────┘  │  │  (Send to Master)  │  │
+│  └────────┬───────────┘  │                    │  └────────────────────┘  │
+│           │              │                    │                          │
+│  ┌────────▼───────────┐  │                    │  ┌────────────────────┐  │
+│  │  HID Reporter      │  │                    │  │  LED Status        │  │
+│  └────────┬───────────┘  │                    │  └────────────────────┘  │
+│           │              │                    │                          │
+│  ┌────────▼───────────┐  │                    │                          │
+│  │  USB HID Device    │──┼──► PC/Host         │                          │
+│  │  (KB + Raw HID)    │  │                    │                          │
+│  └────────────────────┘  │                    │                          │
+│                          │                    │                          │
+│  ┌────────────────────┐  │                    │  ┌────────────────────┐  │
+│  │  IWDG Watchdog     │  │                    │  │  IWDG Watchdog     │  │
+│  └────────────────────┘  │                    │  └────────────────────┘  │
+└──────────────────────────┘                    └──────────────────────────┘
+2. KIẾN TRÚC PHẦN CỨNG
+2.1 Vi điều khiển
+text
+
+┌─────────────────────────────────────────────────────┐
+│              STM32F401CCU6 / STM32F411CEU6           │
+├─────────────────────────────────────────────────────┤
+│ Core:        ARM Cortex-M4F                         │
+│ Clock:       84 MHz (PLL từ HSE 25MHz)              │
+│              PLLM=25, PLLN=336, PLLP=4, PLLQ=7     │
+│              → SYSCLK = 25/25 × 336 / 4 = 84 MHz   │
+│ APB1:        42 MHz (HCLK/2)                        │
+│ APB2:        84 MHz (HCLK/1)                        │
+│ Flash:       256KB / 512KB                          │
+│ SRAM:        64KB / 128KB                           │
+│ USB:         OTG FS (Full Speed 12Mbps)             │
+│ Voltage:     3.3V, Scale 2                          │
+│ Flash Wait:  2 wait states (LATENCY_2)              │
+└─────────────────────────────────────────────────────┘
+2.2 Cấu hình Clock Tree
+text
+
+HSE 25MHz ──► PLL ──► SYSCLK 84MHz
+                         │
+                         ├──► AHB  = 84 MHz  (DIV1)
+                         ├──► APB1 = 42 MHz  (DIV2) → TIM2,TIM5 = 84MHz (×2)
+                         ├──► APB2 = 84 MHz  (DIV1) → USART1 = 84MHz
+                         └──► USB  = 48 MHz  (PLL/PLLQ = 336/7)
+
+LSI 32kHz ──► IWDG (Prescaler=64, Reload=2000)
+              → Timeout ≈ 64 × 2000 / 32000 = 4.0 giây
+2.3 Phân bổ GPIO
+2.3.1 Ma trận phím (Matrix)
+text
+
+┌───────────────────────────────────────────────────┐
+│              HÀNG (ROW) - Output Push-Pull         │
+├──────────┬───────────┬──────────┬─────────────────┤
+│  Signal  │   Pin     │  Port    │  Mode           │
+├──────────┼───────────┼──────────┼─────────────────┤
+│  ROW0    │   PA0     │  GPIOA   │  PP, No Pull    │
+│  ROW1    │   PA1     │  GPIOA   │  PP, No Pull    │
+│  ROW2    │   PA2     │  GPIOA   │  PP, No Pull    │
+│  ROW3    │   PA3     │  GPIOA   │  PP, No Pull    │
+├──────────┴───────────┴──────────┴─────────────────┤
+│  Speed: HIGH, Idle: HIGH (active LOW scan)        │
+└───────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────┐
+│              CỘT (COL) - Input Pull-Up             │
+├──────────┬───────────┬──────────┬─────────────────┤
+│  Signal  │   Pin     │  Port    │  Mode           │
+├──────────┼───────────┼──────────┼─────────────────┤
+│  COL0    │   PB0     │  GPIOB   │  Input, Pull-Up │
+│  COL1    │   PB1     │  GPIOB   │  Input, Pull-Up │
+│  COL2    │   PB6     │  GPIOB   │  Input, Pull-Up │
+│  COL3    │   PB5     │  GPIOB   │  Input, Pull-Up │
+└───────────────────────────────────────────────────┘
+2.3.2 Giao tiếp và LED
+text
+
+┌───────────────────────────────────────────────────┐
+│                  UART (Split Comm)                 │
+├──────────┬───────────┬──────────┬─────────────────┤
+│  USART1_TX│  PA9     │  GPIOA   │  AF7, PP, VHigh │
+│  USART1_RX│  PA10    │  GPIOA   │  AF7, PP, VHigh │
+└──────────┴───────────┴──────────┴─────────────────┘
+
+┌───────────────────────────────────────────────────┐
+│                  USB OTG FS                        │
+├──────────┬───────────┬──────────┬─────────────────┤
+│  USB_DM  │   PA11    │  GPIOA   │  AF10, PP       │
+│  USB_DP  │   PA12    │  GPIOA   │  AF10, PP       │
+└──────────┴───────────┴──────────┴─────────────────┘
+
+┌───────────────────────────────────────────────────┐
+│                  LED Indicators                    │
+├──────────┬───────────┬──────────┬─────────────────┤
+│  STATUS  │   PC13    │  GPIOC   │  PP, Active LOW │
+│  LAYER1  │   PB12    │  GPIOB   │  PP, Active LOW │
+│  LAYER2  │   PB13    │  GPIOB   │  PP, Active LOW │
+└──────────┴───────────┴──────────┴─────────────────┘
+2.3.3 Tổng quan Pin Map
+text
+
+                    STM32F401/F411
+                   ┌─────────────┐
+            PA0  ──┤ 1        32 ├── PB12 (LED_LAYER1)
+   (ROW0)   PA1  ──┤ 2        31 ├── PB13 (LED_LAYER2)
+   (ROW1)   PA2  ──┤ 3        30 ├── PB5  (COL3)
+   (ROW2)   PA3  ──┤ 4        29 ├── PB6  (COL2)
+   (ROW3)        ──┤ 5        28 ├──
+                 ──┤ 6        27 ├──
+                 ──┤ 7        26 ├──
+                 ──┤ 8        25 ├──
+            PA9  ──┤ 9        24 ├── PB1  (COL1)
+   (UART TX)PA10 ──┤ 10       23 ├── PB0  (COL0)
+   (UART RX)PA11 ──┤ 11       22 ├──
+   (USB DM) PA12 ──┤ 12       21 ├──
+   (USB DP) PC13 ──┤ 13       20 ├──
+   (LED ST)      ──┤ 14       19 ├──
+            3V3  ──┤ 15       18 ├──
+            GND  ──┤ 16       17 ├──
+                   └─────────────┘
+2.4 Sơ đồ ma trận phím
+text
+
+          COL0(PB0)    COL1(PB1)    COL2(PB6)    COL3(PB5)
+             │            │            │            │
+ROW0(PA0)────┼──[SW00]────┼──[SW01]────┼──[SW02]────┼──[SW03]
+             │            │            │            │
+ROW1(PA1)────┼──[SW04]────┼──[SW05]────┼──[SW06]────┼──[SW07]
+             │            │            │            │
+ROW2(PA2)────┼──[SW08]────┼──[SW09]────┼──[SW10]────┼──[SW11]
+             │            │            │            │
+ROW3(PA3)────┼──[SW12]────┼──[SW13]────┼──[SW14]────┼──[SW15]
+             │            │            │            │
+
+Scanning Method: Row-driven LOW, Column-read (active LOW = pressed)
+Diode Direction: COL-to-ROW (implied by pull-up on cols)
+2.5 Kết nối vật lý giữa hai nửa
+text
+
+┌─────────────┐                          ┌─────────────┐
+│   MASTER    │          TRRS Cable      │    SLAVE    │
+│             │                          │             │
+│  PA9  (TX) ─┼──────────────────────────┼─ PA10 (RX)  │
+│  PA10 (RX) ─┼──────────────────────────┼─ PA9  (TX)  │
+│  GND       ─┼──────────────────────────┼─ GND        │
+│  VCC (3.3V)─┼──────────────────────────┼─ VCC (3.3V) │
+└─────────────┘                          └─────────────┘
+
+UART Config: 1Mbps, 8N1, No HW Flow Control
+DMA: Circular RX, Normal TX
+3. KIẾN TRÚC PHẦN MỀM
+3.1 Cấu trúc thư mục dự án
+text
+
+DactylKeyboard/
+├── Core/
+│   ├── Inc/                        ← Header files
+│   │   ├── keyboard_config.h       ← Cấu hình tổng thể hệ thống
+│   │   ├── keycode_defs.h          ← Định nghĩa HID keycodes & layer macros
+│   │   ├── default_keymap.h        ← Bản đồ phím mặc định (static const)
+│   │   ├── matrix_driver.h         ← API quét ma trận phím
+│   │   ├── key_processor.h         ← API xử lý phím → HID report
+│   │   ├── split_comm.h            ← API giao tiếp Master/Slave
+│   │   ├── hid_reporter.h          ← API gửi HID report qua USB
+│   │   ├── crc16.h                 ← CRC16-CCITT
+│   │   ├── main.h                  ← HAL includes
+│   │   ├── gpio.h / dma.h / tim.h  ← HAL peripheral init
+│   │   ├── usart.h / usb_otg.h     ← HAL peripheral init
+│   │   ├── iwdg.h                  ← Watchdog
+│   │   ├── stm32f4xx_hal_conf.h    ← HAL module enable/disable
+│   │   └── stm32f4xx_it.h          ← Interrupt handlers
+│   │
+│   └── Src/                        ← Source files
+│       ├── main.c                  ← Entry point, main loop
+│       ├── matrix_driver.c         ← Quét ma trận + debounce
+│       ├── key_processor.c         ← Xử lý keycode, layer, modifier
+│       ├── split_comm.c            ← UART protocol, DMA RX/TX
+│       ├── hid_reporter.c          ← Build & send HID keyboard report
+│       ├── crc16.c                 ← CRC16 implementation
+│       ├── gpio.c / dma.c / tim.c  ← Peripheral initialization
+│       ├── usart.c / usb_otg.c     ← Peripheral initialization
+│       ├── iwdg.c                  ← Watchdog initialization
+│       ├── stm32f4xx_it.c          ← ISR implementations
+│       ├── stm32f4xx_hal_msp.c     ← MSP initialization
+│       ├── stm32f4xx_hal_timebase_tim.c  ← HAL tick (TIM5)
+│       ├── system_stm32f4xx.c      ← SystemInit, clock update
+│       ├── syscalls.c              ← Newlib stubs
+│       └── sysmem.c                ← _sbrk heap management
+│
+├── USB_DEVICE/
+│   ├── App/
+│   │   ├── usb_device.c/h         ← USB device init (USBD_Init/Start)
+│   │   ├── usbd_desc.c/h          ← USB descriptors (VID/PID/strings)
+│   │   └── usbd_hid_custom.c/h    ← HID class (report desc, endpoints)
+│   │
+│   └── Target/
+│       ├── usbd_conf.c            ← USB LL callbacks (PCD→USBD)
+│       └── usbd_conf.h            ← USB configuration macros
+│
+└── Middlewares/
+    └── ST/STM32_USB_Device_Library/ ← (External) USB Device core
+3.2 Phân tầng phần mềm (Software Layers)
+text
+
+┌─────────────────────────────────────────────────────────────┐
+│                    APPLICATION LAYER                         │
+│  ┌──────────┐  ┌──────────────┐  ┌────────────────────┐    │
+│  │ main.c   │  │ default_     │  │ keyboard_config.h  │    │
+│  │(MainLoop)│  │ keymap.h     │  │ (System Constants) │    │
+│  └────┬─────┘  └──────────────┘  └────────────────────┘    │
+│       │                                                      │
+├───────┼──────────────────────────────────────────────────────┤
+│       │           FUNCTIONAL MODULES                         │
+│  ┌────▼─────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
+│  │ Matrix   │  │  Key     │  │  Split    │  │   HID     │  │
+│  │ Driver   │  │Processor │  │  Comm     │  │ Reporter  │  │
+│  │          │  │          │  │           │  │           │  │
+│  │• Scan    │  │• Keymap  │  │• Protocol │  │• Build    │  │
+│  │• Debounce│  │• Layer   │  │• DMA UART │  │• Compare  │  │
+│  │• Events  │  │• Modifier│  │• CRC16    │  │• Send     │  │
+│  └────┬─────┘  └────┬─────┘  └─────┬─────┘  └─────┬─────┘  │
+│       │             │              │              │          │
+├───────┼─────────────┼──────────────┼──────────────┼──────────┤
+│       │        MIDDLEWARE          │              │          │
+│       │    ┌───────────────────────┼──────────────┤          │
+│       │    │  USB Device Library   │              │          │
+│       │    │  ┌─────────────┐      │              │          │
+│       │    │  │ USBD Core   │      │              │          │
+│       │    │  │ HID Custom  │◄─────┘              │          │
+│       │    │  │ Descriptors │                     │          │
+│       │    │  └─────────────┘                     │          │
+│       │    └──────────────────────────────────────┘          │
+│       │                                                      │
+├───────┼──────────────────────────────────────────────────────┤
+│       │             HAL LAYER                                │
+│  ┌────▼────┐  ┌────────┐  ┌──────┐  ┌──────┐  ┌──────────┐ │
+│  │  GPIO   │  │  UART  │  │ DMA  │  │ TIM  │  │ PCD/USB  │ │
+│  │(Matrix) │  │(Split) │  │      │  │      │  │(OTG FS)  │ │
+│  └────┬────┘  └───┬────┘  └──┬───┘  └──┬───┘  └────┬─────┘ │
+│       │           │          │         │           │        │
+├───────┼───────────┼──────────┼─────────┼───────────┼────────┤
+│       │        HARDWARE ABSTRACTION    │           │        │
+│  ┌────▼────────────▼──────────▼─────────▼───────────▼─────┐ │
+│  │              STM32F4xx Registers                        │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+3.3 Luồng khởi tạo (Initialization Sequence)
+text
+
+Reset Vector
+    │
+    ▼
+SystemInit()                    ← FPU enable, Vector table
+    │
+    ▼
+HAL_Init()                      ← SysTick → TIM5 timebase
+    │
+    ▼
+SystemClock_Config()            ← HSE 25MHz → PLL → 84MHz SYSCLK
+    │
+    ▼
+MX_GPIO_Init()                  ← Row outputs, Col inputs, LEDs
+    │
+    ▼
+MX_DMA_Init()                   ← DMA2 Stream2(RX), Stream7(TX)
+    │
+    ▼
+MX_TIM2_Init()                  ← 1ms timer interrupt (PSC=83, ARR=999)
+    │
+    ▼
+MX_USART1_UART_Init()           ← 1Mbps, 8N1
+    │
+    ▼
+Matrix_Init()                   ← Clear states, drive rows HIGH
+    │
+    ▼
+SplitComm_Init()                ← DMA circular RX start, IDLE IRQ
+    │
+    ▼
+MX_IWDG_Init()                  ← Prescaler=64, Reload=2000 (~4s)
+    │
+    ▼
+┌──────────────────────────────────────┐
+│  IF MASTER:                          │
+│    MX_USB_DEVICE_Init()              │
+│    KeyProcessor_Init()               │
+│    HIDReporter_Init()                │
+└──────────────────────────────────────┘
+    │
+    ▼
+HAL_TIM_Base_Start_IT(&htim2)   ← Bắt đầu quét matrix
+    │
+    ▼
+LED Blink Sequence (3 lần)      ← Chỉ thị khởi động thành công
+    │
+    ▼
+Main Loop ──────────────────►
+3.4 Main Loop (Vòng lặp chính)
+3.4.1 Master Main Loop
+text
+
+while(1)
+│
+├── HAL_IWDG_Refresh()              ← Feed watchdog
+│
+├── SplitComm_Process()             ← Parse RX DMA buffer
+│   │                                  Send heartbeat ping
+│   │                                  Check timeout
+│   │
+│   ├── Parse received bytes ──► _ProcessRxByte()
+│   │                              │
+│   │                              ├── SOF → TYPE → LEN → PAYLOAD → CRC
+│   │                              │
+│   │                              └── Valid packet → _HandlePacket()
+│   │                                                    │
+│   │                                                    ├── KEY_EVENT → Remote queue
+│   │                                                    ├── KEY_STATE → Diff → Remote queue
+│   │                                                    ├── PING → Send PONG
+│   │                                                    └── PONG → Mark connected
+│   │
+│   ├── _MasterHeartbeat()          ← Send PING every 50ms
+│   └── _CheckTimeout()            ← Disconnect if >100ms no RX
+│
+├── Process Local Events:
+│   │
+│   └── while (Matrix_GetEvent(&event))
+│       └── KeyProcessor_HandleLocalEvent(&event)
+│           │
+│           ├── Resolve keycode from LEFT keymap
+│           ├── Handle basic key (modifier / normal)
+│           └── Handle layer action (MO/TG/DF)
+│
+├── Process Remote Events:
+│   │
+│   └── while (SplitComm_GetRemoteEvent(&remote_event))
+│       └── KeyProcessor_HandleRemoteEvent(&remote_event)
+│           │
+│           ├── Resolve keycode from RIGHT keymap
+│           ├── Handle basic key
+│           └── Handle layer action
+│
+├── USB HID Report:
+│   │
+│   └── if (USBD_HID_KeyboardReady())
+│       └── HIDReporter_SendIfChanged()
+│           │
+│           ├── Check KeyProcessor changed flag
+│           ├── Build HID_KeyboardReport_t
+│           ├── Compare with last report
+│           ├── Send via USBD_HID_SendKeyboardReport()
+│           └── Clear changed flag
+│
+├── Raw HID Check:
+│   │
+│   └── USBD_HID_GetRawData() → (reserved for future)
+│
+└── LED Layer Indicator:
+    │
+    └── layer_state & 0x02 ? LED_LAYER1 = ON : OFF
+3.4.2 Slave Main Loop
+text
+
+while(1)
+│
+├── HAL_IWDG_Refresh()
+│
+├── SplitComm_Process()             ← Parse RX, respond to PING
+│
+└── Slave_ForwardEvents()
+    │
+    └── while (Matrix_GetEvent(&event))
+        └── SplitComm_SendKeyEvent(event.key_index, event.state)
+            │
+            └── Build packet [SOF|TYPE|LEN|KEY_IDX|STATE|0|CRC_L|CRC_H]
+                Send via UART DMA TX
+3.5 Interrupt Architecture
+text
+
+┌───────────────────────────────────────────────────────────────┐
+│                    INTERRUPT PRIORITY MAP                      │
+├────────────────────┬──────────┬────────────────────────────────┤
+│  Interrupt         │ Priority │ Handler                        │
+├────────────────────┼──────────┼────────────────────────────────┤
+│  TIM2              │    1     │ Matrix_Scan() + Debounce       │
+│  DMA2_Stream2 (RX) │    2     │ UART RX DMA (circular)         │
+│  DMA2_Stream7 (TX) │    2     │ UART TX DMA complete           │
+│  USART1            │    2     │ UART Error + IDLE detection    │
+│  OTG_FS            │    3     │ USB device events              │
+│  TIM5 (HAL Tick)   │   15     │ HAL_IncTick() - 1ms timebase   │
+└────────────────────┴──────────┴────────────────────────────────┘
+
+Nguyên tắc:
+• Matrix scan (TIM2) ưu tiên cao nhất → đảm bảo quét đều 1ms
+• UART DMA ưu tiên 2 → đảm bảo nhận/gửi split data kịp thời
+• USB ưu tiên 3 → xử lý USB events sau matrix và UART
+• HAL Tick ưu tiên thấp nhất → không ảnh hưởng real-time
+3.6 Timer Configuration
+text
+
+┌────────────────────────────────────────────────────────────┐
+│  TIM2 - Matrix Scan Timer (1ms period)                      │
+├────────────────────────────────────────────────────────────┤
+│  Clock Source:  APB1 Timer Clock = 84 MHz                  │
+│  Prescaler:     83  → Timer Clock = 84MHz/(83+1) = 1MHz   │
+│  Period (ARR):  999 → Interrupt = 1MHz/(999+1) = 1kHz     │
+│  → Interrupt mỗi 1ms                                      │
+│                                                            │
+│  ISR Actions:                                              │
+│    1. Matrix_DebounceTask() - Giảm debounce timer          │
+│    2. Matrix_Scan()         - Quét raw + apply debounce    │
+└────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────┐
+│  TIM5 - HAL Timebase (1ms period)                           │
+├────────────────────────────────────────────────────────────┤
+│  Clock Source:  APB1 Timer Clock = 84 MHz                  │
+│  Prescaler:     (84MHz/1MHz - 1) = 83                      │
+│  Period (ARR):  (1MHz/1kHz - 1) = 999                      │
+│  → HAL_IncTick() mỗi 1ms                                  │
+│                                                            │
+│  Thay thế SysTick để tránh conflict với USB/RTOS           │
+└────────────────────────────────────────────────────────────┘
+4. MODULE CHI TIẾT
+4.1 Matrix Driver (matrix_driver.c/h)
+4.1.1 Mục đích
+Quét ma trận phím vật lý, thực hiện debounce per-key, và tạo event khi có thay đổi trạng thái phím.
+
+4.1.2 Cấu trúc dữ liệu
+text
+
+┌──────────────────────────────────────────────────────────┐
+│                     MatrixState_t                         │
+├──────────────────────────────────────────────────────────┤
+│  raw[MATRIX_ROWS]          ← Trạng thái thô sau mỗi scan │
+│  debounced[MATRIX_ROWS]    ← Trạng thái sau debounce      │
+│  debounce[ROWS][COLS]      ← Per-key debounce state        │
+│    ├── status: STABLE / DEBOUNCING                        │
+│    ├── timer:  countdown từ DEBOUNCE_TIME_MS              │
+│    └── stable_state: last stable reading                  │
+│  changed: bool             ← Có thay đổi trong scan này   │
+│  scan_count: uint32_t      ← Tổng số lần scan             │
+└──────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────┐
+│                    KeyEvent_t                             │
+├──────────────────────────────────────────────────────────┤
+│  key_index:  uint8_t       ← row * COLS + col (0..15)    │
+│  row:        uint8_t       ← 0..3                        │
+│  col:        uint8_t       ← 0..3                        │
+│  state:      KeyState_t    ← PRESSED / RELEASED          │
+│  timestamp:  uint32_t      ← HAL_GetTick() lúc event     │
+└──────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────┐
+│                  KeyEventQueue_t                          │
+├──────────────────────────────────────────────────────────┤
+│  buffer[32]:  KeyEvent_t   ← Ring buffer                 │
+│  head:        uint8_t      ← Vị trí đọc                  │
+│  tail:        uint8_t      ← Vị trí ghi                  │
+│  count:       uint8_t      ← Số event trong buffer        │
+│                                                          │
+│  Khi đầy: drop event cũ nhất (head++) rồi ghi mới       │
+└──────────────────────────────────────────────────────────┘
+4.1.3 Thuật toán quét ma trận
+text
+
+Matrix_Scan() [Gọi từ TIM2 ISR, mỗi 1ms]
+│
+├── _Matrix_ScanRaw()
+│   │
+│   │  FOR mỗi row (0..3):
+│   │    ├── _Row_DriveLow(row)     ← BSRR reset bit (active LOW)
+│   │    ├── NOP × 8                ← Chờ tín hiệu ổn định (~100ns)
+│   │    ├── _Read_Columns()        ← Đọc IDR, bit=0 nghĩa pressed
+│   │    │   │
+│   │    │   │  FOR mỗi col (0..3):
+│   │    │   │    if (!(IDR & col_pin)) → col_state |= (1<<col)
+│   │    │   │
+│   │    │   └── return col_state (bitmask)
+│   │    │
+│   │    ├── raw[row] = col_state
+│   │    └── _Row_DriveHigh(row)    ← BSRR set bit (deactivate)
+│   │
+│   └── [Kết quả: raw[0..3] chứa bitmask các phím đang nhấn]
+│
+└── _Matrix_ApplyDebounce()
+    │
+    │  FOR mỗi (row, col):
+    │    │
+    │    ├── raw_pressed = (raw[row] >> col) & 1
+    │    │
+    │    ├── IF debounce.status == STABLE:
+    │    │   │
+    │    │   └── IF raw_pressed ≠ stable_state:
+    │    │       ├── stable_state = raw_pressed
+    │    │       ├── status = DEBOUNCING
+    │    │       ├── timer = DEBOUNCE_TIME_MS (5)
+    │    │       ├── Update debounced[row] bit
+    │    │       ├── changed = true
+    │    │       └── _Matrix_GenerateEvents(row, col, raw_pressed)
+    │    │           │
+    │    │           └── Push KeyEvent to queue
+    │    │
+    │    └── IF debounce.status == DEBOUNCING:
+    │        └── [Bỏ qua, timer đếm xuống trong DebounceTask]
+    │
+    └── [Note: Đây là "eager debounce" - thay đổi ngay, khoá input
+         trong DEBOUNCE_TIME_MS]
+4.1.4 Đặc điểm debounce
+text
+
+Phương pháp: Eager Debounce (phản hồi ngay, khóa sau)
+
+Timeline khi nhấn phím:
+────────────────────────────────────────────────────
+t=0ms  : raw thay đổi 0→1
+         → Cập nhật debounced ngay lập tức
+         → Tạo PRESSED event
+         → Đặt timer = 5ms, status = DEBOUNCING
+
+t=1ms  : DebounceTask: timer-- (timer=4)
+         ScanRaw: đọc raw, nhưng ApplyDebounce bỏ qua
+                  vì status = DEBOUNCING
+
+t=2ms  : timer-- (timer=3), bỏ qua
+
+t=3ms  : timer-- (timer=2), bỏ qua
+
+t=4ms  : timer-- (timer=1), bỏ qua
+
+t=5ms  : timer-- (timer=0), status = STABLE
+         → Bắt đầu chấp nhận thay đổi mới
+
+Ưu điểm: Phản hồi tức thì (0ms latency)
+Nhược điểm: Nếu noise xảy ra đúng lúc chuyển trạng thái,
+            có thể ghi nhận sai 1 lần. Tuy nhiên với phím cơ
+            thực tế, rất hiếm khi xảy ra.
+────────────────────────────────────────────────────
+4.1.5 API
+C
+
+// Khởi tạo module, reset tất cả state
+void Matrix_Init(void);
+
+// Quét ma trận + debounce (gọi từ TIM2 ISR mỗi 1ms)
+void Matrix_Scan(void);
+
+// Giảm debounce timer (gọi từ TIM2 ISR trước Matrix_Scan)
+void Matrix_DebounceTask(void);
+
+// Lấy event từ queue (FIFO). Return false nếu queue rỗng.
+// Disable IRQ khi đọc để thread-safe.
+bool Matrix_GetEvent(KeyEvent_t *event);
+
+// Kiểm tra có event pending
+bool Matrix_HasEvent(void);
+
+// Trả về pointer tới state (read-only)
+const MatrixState_t* Matrix_GetState(void);
+
+// Lấy trạng thái 1 phím cụ thể
+KeyState_t Matrix_GetKeyState(uint8_t row, uint8_t col);
+
+// Chuyển (row,col) → key_index
+uint8_t Matrix_ToKeyIndex(uint8_t row, uint8_t col);
+
+// Reset toàn bộ (gọi Matrix_Init)
+void Matrix_Reset(void);
+4.2 Key Processor (key_processor.c/h)
+4.2.1 Mục đích
+Chuyển đổi KeyEvent (vị trí vật lý) thành trạng thái HID (modifiers + keycodes) dựa trên keymap và layer hiện tại.
+
+4.2.2 Cấu trúc dữ liệu
+text
+
+┌──────────────────────────────────────────────────────────┐
+│                  KeyProcessorState_t                      │
+├──────────────────────────────────────────────────────────┤
+│  modifiers:      uint8_t      ← Bitmask 8 modifier keys  │
+│                                  bit0=LCtrl, bit1=LShift │
+│                                  bit2=LAlt,  bit3=LGui   │
+│                                  bit4=RCtrl, bit5=RShift │
+│                                  bit6=RAlt,  bit7=RGui   │
+│                                                          │
+│  pressed_keys[6]: uint8_t     ← HID usage codes (6KRO)   │
+│                                                          │
+│  pressed_count:   uint8_t     ← Số phím đang nhấn (≤6)   │
+│                                                          │
+│  changed:         bool        ← Cờ cho HID reporter       │
+│                                                          │
+│  active_layer:    uint8_t     ← Layer hiện tại (display)  │
+│                                                          │
+│  layer_state:     uint32_t    ← Bitmask các layer active  │
+│                                  bit0 = Layer 0 (always)  │
+│                                  bit1 = Layer 1            │
+│                                  ...                      │
+│                                  bit15 = Layer 15          │
+└──────────────────────────────────────────────────────────┘
+4.2.3 Keymap Resolution
+text
+
+_ResolveKeycodeLeft(row, col)  / _ResolveKeycodeRight(row, col)
+│
+│  Duyệt từ layer cao nhất xuống thấp nhất:
+│
+│  FOR layer = MAX_LAYERS-1 DOWNTO 0:
+│    │
+│    ├── IF bit layer KHÔNG active trong layer_state → SKIP
+│    │
+│    ├── IF keymap pointer == NULL → SKIP
+│    │
+│    ├── kc = keymap[layer][row * COLS + col]
+│    │
+│    └── IF kc ≠ KC_TRANSPARENT (0xF000) → RETURN kc
+│
+│  RETURN KC_NO (0x0000)  ← Không tìm thấy keycode nào
+
+Ví dụ:
+  layer_state = 0x03 (Layer 0 + Layer 1 active)
+  Nhấn phím tại (0,0):
+    - Kiểm tra Layer 1: KEYMAP_LEFT_LAYER1[0][0] = KC_TRNS
+      → Transparent, skip
+    - Kiểm tra Layer 0: KEYMAP_LEFT_LAYER0[0][0] = KC_GRAVE
+      → Return KC_GRAVE (0x0035)
+4.2.4 Active Key Tracking
+text
+
+Mục đích: Đảm bảo khi RELEASE một phím, dùng đúng keycode
+           đã được ghi nhận lúc PRESS (dù layer đã thay đổi)
+
+┌────────────────────────────────────────────────────┐
+│  s_active_local[MATRIX_ROWS * MATRIX_COLS]         │
+│  s_active_remote[MATRIX_ROWS * MATRIX_COLS]        │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│  PRESS event:                                      │
+│    kc = ResolveKeycode(row, col)  ← Tra keymap     │
+│    active[key_index] = kc         ← Lưu lại       │
+│    Process(kc, PRESSED)                            │
+│                                                    │
+│  RELEASE event:                                    │
+│    kc = active[key_index]         ← Dùng kc đã lưu│
+│    active[key_index] = KC_NO      ← Xóa           │
+│    Process(kc, RELEASED)                           │
+│                                                    │
+│  → Tránh trường hợp: nhấn A ở Layer0, chuyển      │
+│    Layer1, thả phím → phải release đúng A,         │
+│    không phải keycode Layer1 tại vị trí đó         │
+└────────────────────────────────────────────────────┘
+4.2.5 Xử lý các loại keycode
+text
+
+Phân loại keycode 16-bit:
+  [15:12] = Type (4 bit)
+  [11:0]  = Data (12 bit)
+
+┌──────────┬──────────┬────────────────────────────────────┐
+│   Type   │  Value   │  Mô tả                            │
+├──────────┼──────────┼────────────────────────────────────┤
+│  BASIC   │  0x0     │  HID usage code chuẩn              │
+│          │          │  Data 0x04-0xDF: normal keys        │
+│          │          │  Data 0xE0-0xE7: modifier keys      │
+│          │          │                                    │
+│  LAYER   │  0x1     │  Layer control                     │
+│          │          │  [11:8]=action, [7:4]=target_layer  │
+│          │          │  Action 0x0: MO (Momentary)         │
+│          │          │  Action 0x1: TG (Toggle)            │
+│          │          │  Action 0x2: DF (Default)           │
+│          │          │                                    │
+│  MOD_KEY │  0x2     │  (Reserved) Modifier + Key combo   │
+│  MACRO   │  0x3     │  (Reserved) Macro playback         │
+│  SYSTEM  │  0x4     │  (Reserved) System control         │
+│  TAP_HOLD│  0x5     │  (Reserved) Tap-Hold dual function │
+│  SPECIAL │  0xF     │  KC_TRANSPARENT = 0xF000           │
+└──────────┴──────────┴────────────────────────────────────┘
+4.2.6 Layer Actions Detail
+text
+
+MO(layer) - Momentary: Active khi giữ, deactive khi thả
+──────────────────────────────────────────────────────────
+  Encoding: 0x1000 | (0x0 << 8) | (layer << 4)
+  Ví dụ: MO(1) = 0x1010
+
+  PRESS:   layer_state |= (1 << layer)   → Bật layer
+  RELEASE: layer_state &= ~(1 << layer)  → Tắt layer
+           layer_state |= 0x01           → Đảm bảo Layer 0 luôn bật
+
+TG(layer) - Toggle: Đảo trạng thái khi nhấn, không làm gì khi thả
+──────────────────────────────────────────────────────────
+  Encoding: 0x1000 | (0x1 << 8) | (layer << 4)
+  Ví dụ: TG(1) = 0x1110
+
+  PRESS:   layer_state ^= (1 << layer)   → Toggle layer
+           layer_state |= 0x01           → Đảm bảo Layer 0
+  RELEASE: (không làm gì)
+
+DF(layer) - Default: Chuyển sang layer duy nhất
+──────────────────────────────────────────────────────────
+  Encoding: 0x1000 | (0x2 << 8) | (layer << 4)
+  Ví dụ: DF(2) = 0x1220
+
+  PRESS:   layer_state = (1 << layer)    → Chỉ bật layer này
+  RELEASE: (không làm gì)
+4.2.7 Modifier và Normal Key Processing
+text
+
+_HandleBasicKey(kc, state):
+│
+├── IF IS_MODIFIER(kc):     ← 0xE0 ≤ data ≤ 0xE7
+│   │
+│   │  mod_bit = 1 << (data - 0xE0)
+│   │
+│   ├── PRESSED:  modifiers |= mod_bit
+│   └── RELEASED: modifiers &= ~mod_bit
+│   
+│   changed = true
+│
+└── ELSE (normal key):      ← 0x04 ≤ data ≤ 0xDF
+    │
+    ├── PRESSED:  _AddPressedKey(hid_code)
+    │   │
+    │   ├── Kiểm tra duplicate (đã có trong mảng → return)
+    │   └── Nếu count < 6: thêm vào cuối, count++, changed=true
+    │       Nếu count ≥ 6: bỏ qua (6KRO limit)
+    │
+    └── RELEASED: _RemovePressedKey(hid_code)
+        │
+        ├── Tìm vị trí trong mảng
+        ├── Shift các phần tử sau lên
+        ├── count--, clear slot cuối
+        └── changed = true
+4.3 Split Communication (split_comm.c/h)
+4.3.1 Mục đích
+Truyền nhận dữ liệu phím giữa Master và Slave qua UART với DMA, có kiểm tra CRC16 và cơ chế heartbeat/timeout.
+
+4.3.2 Packet Format
+text
+
+┌─────┬──────┬──────┬──────────────────┬───────┬───────┐
+│ SOF │ TYPE │ LEN  │    PAYLOAD       │ CRC_L │ CRC_H │
+│ 1B  │ 1B   │ 1B   │    0..16 bytes   │ 1B    │ 1B    │
+└─────┴──────┴──────┴──────────────────┴───────┴───────┘
+
+SOF:      0xAA (Start of Frame)
+TYPE:     Packet type identifier
+LEN:      Payload length (0..16)
+PAYLOAD:  Variable length data
+CRC:      CRC16-CCITT over [TYPE + LEN + PAYLOAD]
+          Polynomial: 0x1021, Init: 0xFFFF
+
+Tổng kích thước: 3 + LEN + 2 = 5..21 bytes
+Max packet: SPLIT_MAX_PACKET_SIZE = 21 bytes
+4.3.3 Packet Types
+text
+
+┌──────────────────────────────────────────────────────────────┐
+│                      PACKET TYPES                             │
+├──────────┬───────┬────────┬───────────────────────────────────┤
+│  Name    │ Value │ Length │ Description                       │
+├──────────┼───────┼────────┼───────────────────────────────────┤
+│ KEY_EVENT│ 0x01  │   3    │ Slave→Master: single key event   │
+│          │       │        │ Payload: {key_index, state, 0x00} │
+│          │       │        │                                   │
+│ KEY_STATE│ 0x02  │ ROWS   │ Full matrix state (alternative)   │
+│          │       │ (4)    │ Payload: {row0..row3} bitmasks    │
+│          │       │        │                                   │
+│ PING     │ 0x03  │   0    │ Master→Slave: heartbeat request  │
+│          │       │        │                                   │
+│ PONG     │ 0x04  │   0    │ Slave→Master: heartbeat response │
+│          │       │        │                                   │
+│ SYNC_REQ │ 0x10  │   -    │ (Reserved) Synchronization       │
+│ SYNC_RSP │ 0x11  │   -    │ (Reserved)                       │
+└──────────┴───────┴────────┴───────────────────────────────────┘
+4.3.4 Cấu trúc dữ liệu truyền thông
+text
+
+┌──────────────────────────────────────────────────────────────┐
+│                    SplitCommState_t                            │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Connection Status:                                          │
+│    status:              CONNECTED / DISCONNECTED             │
+│    last_rx_tick:        Timestamp lần nhận cuối              │
+│    last_heartbeat_tick: Timestamp heartbeat cuối             │
+│                                                              │
+│  Statistics:                                                 │
+│    rx_packet_count:     Số packet nhận thành công            │
+│    rx_error_count:      Số lỗi CRC/format                   │
+│    tx_packet_count:     Số packet gửi                        │
+│                                                              │
+│  RX State Machine:                                           │
+│    rx_state:            WAIT_SOF → TYPE → LEN → PAYLOAD     │
+│                         → CRC_L → CRC_H                     │
+│    rx_packet:           Packet đang parse                    │
+│    rx_payload_idx:      Index trong payload                  │
+│                                                              │
+│  DMA Buffers:                                                │
+│    rx_dma_buf[512]:     DMA circular receive buffer          │
+│    rx_dma_read_pos:     Software read position               │
+│    tx_buf[21]:          TX packet buffer                     │
+│    tx_busy:             Flag TX DMA đang hoạt động           │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+4.3.5 DMA UART Architecture
+text
+
+                    UART RX (DMA Circular)
+┌────────────────────────────────────────────────────┐
+│                                                    │
+│  USART1_RX ──► DMA2_Stream2 ──► rx_dma_buf[512]   │
+│                                                    │
+│  ┌──────────────────────────────────────────────┐  │
+│  │ rx_dma_buf (circular buffer)                  │  │
+│  │                                               │  │
+│  │  ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐   │  │
+│  │  │ . │ . │ D │ D │ D │ D │ . │ . │ . │ . │   │  │
+│  │  └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘   │  │
+│  │          ▲               ▲                    │  │
+│  │          │               │                    │  │
+│  │    rx_dma_read_pos  DMA write pos             │  │
+│  │    (software)       (hardware NDTR)           │  │
+│  │                                               │  │
+│  │  write_pos = (BUF_SIZE - NDTR) % BUF_SIZE    │  │
+│  │                                               │  │
+│  │  Đọc bytes: while (read_pos != write_pos)     │  │
+│  │    byte = buf[read_pos]                       │  │
+│  │    read_pos = (read_pos + 1) % BUF_SIZE       │  │
+│  └──────────────────────────────────────────────┘  │
+│                                                    │
+└────────────────────────────────────────────────────┘
+
+                    UART TX (DMA Normal)
+┌────────────────────────────────────────────────────┐
+│                                                    │
+│  tx_buf[21] ──► DMA2_Stream7 ──► USART1_TX        │
+│                                                    │
+│  tx_busy = true  → Start DMA                      │
+│  DMA Complete ISR → tx_busy = false                │
+│                                                    │
+│  Nếu tx_busy: _SendPacket() return false           │
+│  → Caller phải retry hoặc drop                     │
+└────────────────────────────────────────────────────┘
+4.3.6 RX State Machine
+text
+
+                    ┌──────────────┐
+                    │ WAIT_SOF     │◄──── Reset on error
+                    └──────┬───────┘
+                           │ byte == 0xAA
+                           ▼
+                    ┌──────────────┐
+                    │ WAIT_TYPE    │
+                    └──────┬───────┘
+                           │ save type
+                           ▼
+                    ┌──────────────┐
+                    │ WAIT_LEN     │
+                    └──────┬───────┘
+                           │
+                    ┌──────┼──────────────┐
+                    │      │              │
+                    ▼      ▼              ▼
+               len > 16  len == 0      len > 0
+               → ERROR   → CRC_L     → PAYLOAD
+               → WAIT_SOF
+                           │              │
+                           ▼              ▼
+                    ┌──────────────┐ ┌─────────────┐
+                    │ WAIT_CRC_L  │ │WAIT_PAYLOAD  │
+                    └──────┬──────┘ └──────┬───────┘
+                           │               │ idx++ until
+                           │               │ idx >= len
+                           │               │
+                           │      ┌────────┘
+                           ▼      ▼
+                    ┌──────────────┐
+                    │ WAIT_CRC_L  │
+                    └──────┬──────┘
+                           │ save crc low byte
+                           ▼
+                    ┌──────────────┐
+                    │ WAIT_CRC_H  │
+                    └──────┬──────┘
+                           │ crc |= (byte << 8)
+                           │
+                    ┌──────┼──────────────┐
+                    │      │              │
+                    ▼      ▼              ▼
+              CRC match?  YES            NO
+                    │                     │
+                    ▼                     ▼
+             _HandlePacket()        rx_error_count++
+             rx_packet_count++           │
+                    │                     │
+                    └──────────┬──────────┘
+                               ▼
+                        WAIT_SOF (reset)
+4.3.7 Heartbeat và Timeout
+text
+
+Master Heartbeat:
+──────────────────────────────────────────────
+  Mỗi 50ms (SPLIT_HEARTBEAT_MS):
+    → Gửi PING packet (no payload)
+    → last_heartbeat_tick = now
+
+Slave Response:
+──────────────────────────────────────────────
+  Nhận PING → Gửi PONG packet (no payload)
+
+Timeout Detection:
+──────────────────────────────────────────────
+  Mỗi vòng lặp SplitComm_Process():
+    IF status == CONNECTED:
+      elapsed = now - last_rx_tick
+      IF elapsed > 100ms (SPLIT_TIMEOUT_MS):
+        status = DISCONNECTED
+
+Auto Reconnect:
+──────────────────────────────────────────────
+  Bất kỳ packet hợp lệ nào nhận được:
+    last_rx_tick = now
+    IF status == DISCONNECTED:
+      status = CONNECTED
+4.3.8 Error Recovery
+text
+
+HAL_UART_ErrorCallback():
+│
+├── Clear error flags: ORE, NE, FE
+│
+├── Reset RX state machine → WAIT_SOF
+│
+├── Reset DMA read position → 0
+│
+├── HAL_UART_DMAStop()
+│
+├── HAL_UART_Receive_DMA() restart
+│
+└── rx_error_count++
+
+Các lỗi UART được xử lý:
+• ORE (Overrun Error): DMA không kịp → clear & restart
+• NE  (Noise Error):   Nhiễu đường truyền → clear
+• FE  (Framing Error): Sai format frame → clear
+4.3.9 Remote Event Queue
+text
+
+┌──────────────────────────────────────────────────────────┐
+│  Remote Event Queue (chỉ trên Master)                     │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  s_remote_events[16]:  Ring buffer KeyEvent_t             │
+│  s_remote_head/tail/count: volatile                       │
+│                                                          │
+│  _PushRemoteEvent():                                      │
+│    Khi queue đầy → drop event cũ nhất (head++)            │
+│    Ghi event mới tại tail, tail++, count++                │
+│                                                          │
+│  SplitComm_GetRemoteEvent():                              │
+│    Disable IRQ → đọc từ head → Enable IRQ                 │
+│    Thread-safe giữa main loop và ISR context              │
+│                                                          │
+│  KEY_STATE packet handling:                               │
+│    So sánh với prev_remote_state[]                         │
+│    Tạo event cho mỗi bit thay đổi                         │
+│    → Hỗ trợ cả event-based và state-based protocol        │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+4.4 HID Reporter (hid_reporter.c/h)
+4.4.1 Mục đích
+Xây dựng USB HID Keyboard report từ trạng thái KeyProcessor và gửi qua USB endpoint khi có thay đổi.
+
+4.4.2 Hoạt động
+text
+
+HIDReporter_SendIfChanged(pdev):
+│
+├── IF !KeyProcessor_HasChanged() → RETURN
+│
+├── Get KeyProcessorState_t
+│
+├── Build current_report:
+│   │
+│   ├── report_id  = 0x01 (KEYBOARD)
+│   ├── modifiers  = state->modifiers
+│   ├── reserved   = 0x00
+│   └── keycodes[6] = state->pressed_keys[0..5]
+│       (zero-pad nếu ít hơn 6 phím)
+│
+├── IF current_report ≠ last_report:
+│   │
+│   ├── USBD_HID_SendKeyboardReport(pdev, &current_report)
+│   │
+│   └── IF success:
+│       └── last_report = current_report
+│
+└── KeyProcessor_ClearChanged()
+
+Note: So sánh toàn bộ struct (memcmp) trước khi gửi
+      → Tránh gửi report trùng lặp
+      → Giảm tải USB bus
+4.4.3 HID Keyboard Report Format
+text
+
+┌─────────┬────────────┬──────────┬──────────────────────┐
+│ Byte 0  │  Byte 1    │  Byte 2  │  Bytes 3-8           │
+│Report ID│ Modifiers  │ Reserved │ Keycodes[6]          │
+│ 0x01    │ Bitmask    │ 0x00     │ HID Usage IDs        │
+└─────────┴────────────┴──────────┴──────────────────────┘
+
+Total: 9 bytes (including Report ID)
+
+Modifier bits:
+  bit 0: Left Control
+  bit 1: Left Shift
+  bit 2: Left Alt
+  bit 3: Left GUI
+  bit 4: Right Control
+  bit 5: Right Shift
+  bit 6: Right Alt
+  bit 7: Right GUI
+4.5 CRC16 (crc16.c/h)
+4.5.1 Specifications
+text
+
+┌────────────────────────────────────────────┐
+│  CRC16-CCITT                               │
+├────────────────────────────────────────────┤
+│  Polynomial:  0x1021 (x^16+x^12+x^5+1)   │
+│  Init Value:  0xFFFF                       │
+│  Input:       MSB first                    │
+│  Xor Out:     None                         │
+│  Check:       Per-byte update              │
+└────────────────────────────────────────────┘
+
+Sử dụng:
+• Split comm packet integrity check
+• CRC tính trên [TYPE + LEN + PAYLOAD]
+• Không bao gồm SOF byte
+5. GIAO THỨC TRUYỀN THÔNG SPLIT (Chi tiết)
+5.1 Sequence Diagrams
+5.1.1 Normal Operation - Key Press on Slave
+text
+
+    SLAVE                                    MASTER
+      │                                        │
+      │  [User presses key at (1,2)]           │
+      │                                        │
+      │  Matrix_Scan() → KeyEvent             │
+      │  Slave_ForwardEvents()                 │
+      │                                        │
+      │  ┌──────────────────────────────┐      │
+      │  │ SOF=0xAA                    │      │
+      │  │ TYPE=0x02 (KEY_EVENT)       │      │
+      │  │ LEN=0x03                    │      │
+      │  │ PAYLOAD: key_idx=6, state=1,│      │
+      │  │          reserved=0         │      │
+      │  │ CRC16: 0xXXXX              │      │
+      │  └──────────────────────────────┘      │
+      │  ─────────────────────────────────────►│
+      │                                        │
+      │                           _HandleKeyEvent()
+      │                           → row=6/4=1, col=6%4=2
+      │                           → KeyEvent{row=1,col=2,PRESSED}
+      │                           → Push to remote_events queue
+      │                                        │
+      │                           KeyProcessor_HandleRemoteEvent()
+      │                           → Resolve RIGHT keymap
+      │                           → Process keycode
+      │                                        │
+      │                           HIDReporter_SendIfChanged()
+      │                           → USB HID Report to PC
+      │                                        │
+5.1.2 Heartbeat Sequence
+text
+
+    MASTER                                   SLAVE
+      │                                        │
+      │  [Every 50ms]                          │
+      │                                        │
+      │  ┌────────────────────┐                │
+      │  │ SOF=0xAA           │                │
+      │  │ TYPE=0x03 (PING)   │                │
+      │  │ LEN=0x00           │                │
+      │  │ CRC16: 0xXXXX      │                │
+      │  └────────────────────┘                │
+      │  ─────────────────────────────────────►│
+      │                                        │
+      │                            _HandlePing()
+      │                                        │
+      │                ┌────────────────────┐  │
+      │                │ SOF=0xAA           │  │
+      │                │ TYPE=0x04 (PONG)   │  │
+      │                │ LEN=0x00           │  │
+      │                │ CRC16: 0xXXXX      │  │
+      │                └────────────────────┘  │
+      │◄─────────────────────────────────────── │
+      │                                        │
+      │  _HandlePong()                         │
+      │  status = CONNECTED                    │
+      │  last_rx_tick = now                    │
+      │                                        │
+5.1.3 Timeout và Reconnect
+text
+
+    MASTER                                   SLAVE
+      │                                        │
+      │  PING ────────────────────────────────►│ (cable disconnected)
+      │  ... no response ...                   │
+      │                                        │
+      │  [100ms elapsed since last_rx_tick]     │
+      │  _CheckTimeout()                       │
+      │  status = DISCONNECTED                 │
+      │                                        │
+      │  ... cable reconnected ...             │
+      │                                        │
+      │  PING ────────────────────────────────►│
+      │◄──────────────────────────────── PONG  │
+      │                                        │
+      │  _HandlePong()                         │
+      │  status = CONNECTED ← auto reconnect   │
+      │                                        │
+6. USB HID INTERFACE
+6.1 USB Device Configuration
+text
+
+┌──────────────────────────────────────────────────────────────┐
+│                    USB DEVICE DESCRIPTOR                       │
+├──────────────────────────────────────────────────────────────┤
+│  bcdUSB:          0x0200 (USB 2.0)                           │
+│  bDeviceClass:    0x00   (Defined at Interface level)        │
+│  bDeviceSubClass: 0x00                                       │
+│  bDeviceProtocol: 0x00                                       │
+│  bMaxPacketSize0: 64 (USB_MAX_EP0_SIZE)                      │
+│  idVendor:        0xFEED                                     │
+│  idProduct:       0xDAC1                                     │
+│  bcdDevice:       0x0100                                     │
+│  iManufacturer:   "DactylKB"                                 │
+│  iProduct:        "Dactyl Ergonomic Keyboard"                │
+│  iSerialNumber:   "00000001"                                 │
+│  bNumConfigs:     1                                          │
+└──────────────────────────────────────────────────────────────┘
+6.2 Configuration Descriptor Layout
+text
+
+┌──────────────────────────────────────────────────────────────┐
+│          CONFIGURATION DESCRIPTOR (66 bytes total)            │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Configuration Descriptor (9 bytes)                          │
+│  ├── wTotalLength: 66                                        │
+│  ├── bNumInterfaces: 2                                       │
+│  ├── bmAttributes: 0xA0 (Bus Powered, Remote Wakeup)         │
+│  └── bMaxPower: 100mA (0x32 × 2)                            │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  INTERFACE 0: HID Keyboard                             │  │
+│  │  ├── bInterfaceClass: 0x03 (HID)                       │  │
+│  │  ├── bInterfaceSubClass: 0x01 (Boot)                   │  │
+│  │  ├── bInterfaceProtocol: 0x01 (Keyboard)               │  │
+│  │  │                                                     │  │
+│  │  ├── HID Descriptor (9 bytes)                          │  │
+│  │  │   ├── bcdHID: 1.11                                  │  │
+│  │  │   └── wDescriptorLength: sizeof(HID_KB_ReportDesc)  │  │
+│  │  │                                                     │  │
+│  │  └── Endpoint 0x81 IN (Interrupt)                      │  │
+│  │      ├── wMaxPacketSize: 9                             │  │
+│  │      └── bInterval: 1ms                                │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  INTERFACE 1: Raw HID                                  │  │
+│  │  ├── bInterfaceClass: 0x03 (HID)                       │  │
+│  │  ├── bInterfaceSubClass: 0x00 (None)                   │  │
+│  │  ├── bInterfaceProtocol: 0x00 (None)                   │  │
+│  │  │                                                     │  │
+│  │  ├── HID Descriptor (9 bytes)                          │  │
+│  │  │   └── wDescriptorLength: sizeof(HID_Raw_ReportDesc) │  │
+│  │  │                                                     │  │
+│  │  ├── Endpoint 0x82 IN (Interrupt)                      │  │
+│  │  │   ├── wMaxPacketSize: 32                            │  │
+│  │  │   └── bInterval: 1ms                                │  │
+│  │  │                                                     │  │
+│  │  └── Endpoint 0x02 OUT (Interrupt)                     │  │
+│  │      ├── wMaxPacketSize: 32                            │  │
+│  │      └── bInterval: 1ms                                │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+6.3 HID Report Descriptors
+6.3.1 Keyboard Report Descriptor
+text
+
+Usage Page (Generic Desktop)         0x05, 0x01
+Usage (Keyboard)                     0x09, 0x06
+Collection (Application)             0xA1, 0x01
+  Report ID (1)                      0x85, 0x01
+  
+  // Modifier keys (8 bits)
+  Usage Page (Keyboard/Keypad)       0x05, 0x07
+  Usage Minimum (Left Control)       0x19, 0xE0
+  Usage Maximum (Right GUI)          0x29, 0xE7
+  Logical Minimum (0)               0x15, 0x00
+  Logical Maximum (1)               0x25, 0x01
+  Report Size (1)                    0x75, 0x01
+  Report Count (8)                   0x95, 0x08
+  Input (Data, Variable, Absolute)   0x81, 0x02
+  
+  // Reserved byte
+  Report Count (1)                   0x95, 0x01
+  Report Size (8)                    0x75, 0x08
+  Input (Constant, Variable, Abs)    0x81, 0x03
+  
+  // LED output (5 bits + 3 padding)
+  Usage Page (LEDs)                  0x05, 0x08
+  Usage Minimum (Num Lock)           0x19, 0x01
+  Usage Maximum (Kana)               0x29, 0x05
+  Report Count (5)                   0x95, 0x05
+  Report Size (1)                    0x75, 0x01
+  Output (Data, Variable, Absolute)  0x91, 0x02
+  Report Count (1)                   0x95, 0x01
+  Report Size (3)                    0x75, 0x03
+  Output (Constant, Variable, Abs)   0x91, 0x03
+  
+  // Keycodes (6 bytes)
+  Usage Page (Keyboard/Keypad)       0x05, 0x07
+  Usage Minimum (0)                  0x19, 0x00
+  Usage Maximum (231)                0x29, 0xE7
+  Logical Minimum (0)               0x15, 0x00
+  Logical Maximum (231)             0x26, 0xE7, 0x00
+  Report Count (6)                   0x95, 0x06
+  Report Size (8)                    0x75, 0x08
+  Input (Data, Array)                0x81, 0x00
+  
+End Collection                       0xC0
+6.3.2 Raw HID Report Descriptor
+text
+
+Usage Page (Vendor Defined 0xFF60)   0x06, 0x60, 0xFF
+Usage (0x61)                         0x09, 0x61
+Collection (Application)             0xA1, 0x01
+  
+  // Input (Host ← Device): 32 bytes
+  Usage (0x62)                       0x09, 0x62
+  Logical Minimum (0)               0x15, 0x00
+  Logical Maximum (255)             0x26, 0xFF, 0x00
+  Report Size (8)                    0x75, 0x08
+  Report Count (32)                  0x95, 0x20
+  Input (Data, Variable, Absolute)   0x81, 0x02
+  
+  // Output (Host → Device): 32 bytes
+  Usage (0x63)                       0x09, 0x63
+  Logical Minimum (0)               0x15, 0x00
+  Logical Maximum (255)             0x26, 0xFF, 0x00
+  Report Size (8)                    0x75, 0x08
+  Report Count (32)                  0x95, 0x20
+  Output (Data, Variable, Absolute)  0x91, 0x02
+  
+End Collection                       0xC0
+6.4 Endpoint Architecture
+text
+
+┌─────────────────────────────────────────────────────────┐
+│                   USB OTG FS Endpoints                   │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  EP0 (Control):     ← Setup requests, HID reports       │
+│    FIFO RX: 0x80 × 4 = 512 bytes                       │
+│    FIFO TX: 0x40 × 4 = 256 bytes                       │
+│                                                         │
+│  EP1 IN (0x81):     → Keyboard reports (9 bytes)         │
+│    Type: Interrupt                                      │
+│    FIFO TX: 0x20 × 4 = 128 bytes                       │
+│    Poll: 1ms                                            │
+│    State: HID_IDLE / HID_BUSY                           │
+│                                                         │
+│  EP2 IN (0x82):     → Raw HID IN (32 bytes)             │
+│    Type: Interrupt                                      │
+│    FIFO TX: 0x20 × 4 = 128 bytes                       │
+│    Poll: 1ms                                            │
+│    State: HID_IDLE / HID_BUSY                           │
+│                                                         │
+│  EP2 OUT (0x02):    ← Raw HID OUT (32 bytes)            │
+│    Type: Interrupt                                      │
+│    Uses RX FIFO (shared)                                │
+│    Double buffered: s_raw_rx_buf → s_raw_data_buf       │
+│                                                         │
+│  Note: VBUS sensing DISABLED                             │
+│        (Board không có VBUS sense pin)                   │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+6.5 USB HID Class State Machine
+text
+
+                    ┌────────────┐
+                    │   Init     │
+                    └─────┬──────┘
+                          │ USBD_HID_Init()
+                          │ Open EP0x81, EP0x82, EP0x02
+                          │ PrepareReceive(EP0x02)
+                          ▼
+                    ┌────────────┐
+              ┌────►│   IDLE     │
+              │     └─────┬──────┘
+              │           │ SendKeyboardReport()
+              │           │ kb_state = HID_BUSY
+              │           │ USBD_LL_Transmit(EP0x81)
+              │           ▼
+              │     ┌────────────┐
+              │     │   BUSY     │
+              │     └─────┬──────┘
+              │           │ DataIn callback (EP1)
+              │           │ kb_state = HID_IDLE
+              └───────────┘
+
+Raw HID OUT receive flow:
+  EP0x02 DataOut → memcpy to s_raw_data_buf
+                 → s_raw_data_available = true
+                 → PrepareReceive(EP0x02) again
+7. HỆ THỐNG KEYMAP VÀ LAYER
+7.1 Default Keymap (4×4 Demo)
+7.1.1 Left Half - Layer 0
+text
+
+┌──────────┬──────────┬──────────┬──────────┐
+│  `  ~    │  1  !    │  2  @    │  3  #    │  ROW 0
+│ KC_GRAVE │  KC_1    │  KC_2    │  KC_3    │
+├──────────┼──────────┼──────────┼──────────┤
+│  Tab     │  Q       │  W       │  E       │  ROW 1
+│ KC_TAB   │  KC_Q    │  KC_W    │  KC_E    │
+├──────────┼──────────┼──────────┼──────────┤
+│  Esc     │  A       │  S       │  D       │  ROW 2
+│ KC_ESC   │  KC_A    │  KC_S    │  KC_D    │
+├──────────┼──────────┼──────────┼──────────┤
+│  LShift  │  Z       │  X       │  C       │  ROW 3
+│ KC_LSFT  │  KC_Z    │  KC_X    │  KC_C    │
+└──────────┴──────────┴──────────┴──────────┘
+   COL 0      COL 1      COL 2      COL 3
+7.1.2 Left Half - Layer 1
+text
+
+┌──────────┬──────────┬──────────┬──────────┐
+│  ▽       │  F1      │  F2      │  F3      │  ROW 0
+│ KC_TRNS  │  KC_F1   │  KC_F2   │  KC_F3   │
+├──────────┼──────────┼──────────┼──────────┤
+│  ▽       │  ✕       │  ↑       │  ✕       │  ROW 1
+│ KC_TRNS  │  KC_NO   │  KC_UP   │  KC_NO   │
+├──────────┼──────────┼──────────┼──────────┤
+│  ▽       │  ←       │  ↓       │  →       │  ROW 2
+│ KC_TRNS  │  KC_LEFT │  KC_DOWN │ KC_RIGHT │
+├──────────┼──────────┼──────────┼──────────┤
+│  ▽       │  ✕       │  ✕       │  ✕       │  ROW 3
+│ KC_TRNS  │  KC_NO   │  KC_NO   │  KC_NO   │
+└──────────┴──────────┴──────────┴──────────┘
+  ▽ = Transparent (fall through to Layer 0)
+  ✕ = No action
+7.1.3 Right Half - Layer 0
+text
+
+┌──────────┬──────────┬──────────┬──────────┐
+│  4  $    │  5  %    │  6  ^    │ Backspace│  ROW 0
+│  KC_4    │  KC_5    │  KC_6    │ KC_BSPC  │
+├──────────┼──────────┼──────────┼──────────┤
+│  R       │  T       │  Y       │  U       │  ROW 1
+│  KC_R    │  KC_T    │  KC_Y    │  KC_U    │
+├──────────┼──────────┼──────────┼──────────┤
+│  F       │  G       │  H       │  Enter   │  ROW 2
+│  KC_F    │  KC_G    │  KC_H    │ KC_ENT   │
+├──────────┼──────────┼──────────┼──────────┤
+│  V       │  B       │  Space   │  MO(1)   │  ROW 3
+│  KC_V    │  KC_B    │  KC_SPC  │ Layer Fn │
+└──────────┴──────────┴──────────┴──────────┘
+7.1.4 Right Half - Layer 1
+text
+
+┌──────────┬──────────┬──────────┬──────────┐
+│  F4      │  F5      │  F6      │  Delete  │  ROW 0
+│  KC_F4   │  KC_F5   │  KC_F6   │  KC_DEL  │
+├──────────┼──────────┼──────────┼──────────┤
+│  Home    │  PgUp    │  PgDn    │  End     │  ROW 1
+│ KC_HOME  │ KC_PGUP  │ KC_PGDN  │  KC_END  │
+├──────────┼──────────┼──────────┼──────────┤
+│  ✕       │  ✕       │  ✕       │  ▽       │  ROW 2
+│  KC_NO   │  KC_NO   │  KC_NO   │ KC_TRNS  │
+├──────────┼──────────┼──────────┼──────────┤
+│  ✕       │  ✕       │  ▽       │  ▽       │  ROW 3
+│  KC_NO   │  KC_NO   │ KC_TRNS  │ KC_TRNS  │
+└──────────┴──────────┴──────────┴──────────┘
+7.2 Full Size Keymap (8×6, disabled in code)
+text
+
+Dự kiến cho bàn phím Dactyl đầy đủ:
+
+Left Half (8 rows × 6 cols = 48 keys):
+  Rows 0-3: Main key area (6 cols mỗi hàng)
+  Rows 4-5: Unused/expansion
+  Row 6:    Thumb cluster bottom (LCtrl, LGui, LAlt, Space)
+  Row 7:    Thumb cluster top (MO(1), Enter, Backspace, Delete)
+
+Right Half (8 rows × 6 cols = 48 keys):
+  Rows 0-3: Main key area
+  Rows 4-5: Unused/expansion
+  Row 6:    Thumb cluster bottom (Space, RAlt, RGui, RCtrl)
+  Row 7:    Thumb cluster top (Enter, Backspace, Delete, MO(1))
+
+Total: 96 keys (tối đa)
+7.3 Keycode Encoding Summary
+text
+
+16-bit keycode encoding:
+
+┌────────────────────────────────────────────────────────┐
+│  Bits [15:12]  │  Bits [11:0]                          │
+│  Type (4 bit)  │  Data (12 bit)                        │
+├────────────────┼───────────────────────────────────────┤
+│                │                                       │
+│  0x0 (Basic)   │  HID Usage Code (0x00-0xE7)          │
+│                │  0x04-0x1D: Letters A-Z               │
+│                │  0x1E-0x27: Numbers 1-0               │
+│                │  0x28-0x38: Special chars              │
+│                │  0x39-0x52: Function/Nav keys          │
+│                │  0xE0-0xE7: Modifier keys              │
+│                │                                       │
+│  0x1 (Layer)   │  [11:8]=action [7:4]=layer [3:0]=0   │
+│                │  action: 0=MO, 1=TG, 2=DF             │
+│                │  Ví dụ: MO(1) = 0x1010               │
+│                │         TG(2) = 0x1120                │
+│                │                                       │
+│  0xF (Special) │  0xF000 = KC_TRANSPARENT              │
+│                │                                       │
+│  0x0000        │  KC_NO (no action)                    │
+│                │                                       │
+└────────────────┴───────────────────────────────────────┘
+8. QUẢN LÝ LỖI VÀ WATCHDOG
+8.1 Independent Watchdog (IWDG)
+text
+
+┌──────────────────────────────────────────────────────────┐
+│                    IWDG Configuration                     │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Clock:      LSI ≈ 32 kHz                                │
+│  Prescaler:  64                                          │
+│  Reload:     2000                                        │
+│                                                          │
+│  Timeout = (Prescaler × Reload) / LSI_freq               │
+│         = (64 × 2000) / 32000                            │
+│         = 4.0 giây                                       │
+│                                                          │
+│  Feed: HAL_IWDG_Refresh() ở đầu main loop               │
+│                                                          │
+│  Khi nào watchdog reset xảy ra:                          │
+│  • Main loop bị treo > 4 giây                            │
+│  • USB enumeration fail và loop không chạy               │
+│  • Hard fault xảy ra                                     │
+│  • UART DMA deadlock                                     │
+│                                                          │
+│  Khởi tạo sau SplitComm_Init() để tránh reset            │
+│  trong quá trình USB enumeration (có thể > 1s)           │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+8.2 Error Handler
+text
+
+Error_Handler():
+  __disable_irq()
+  while(1) { }  ← Infinite loop, chờ watchdog reset
+
+Các nguồn gọi Error_Handler():
+  • HAL_RCC_OscConfig() fail
+  • HAL_RCC_ClockConfig() fail
+  • HAL_TIM_Base_Init() fail
+  • HAL_UART_Init() fail
+  • HAL_IWDG_Init() fail
+  • HAL_PCD_Init() fail
+  • USBD_Init() / USBD_RegisterClass() / USBD_Start() fail
+  • HAL_DMA_Init() fail
+8.3 Fault Handlers
+text
+
+NMI_Handler         → while(1)
+HardFault_Handler   → while(1)  ← IWDG sẽ reset
+MemManage_Handler   → while(1)
+BusFault_Handler    → while(1)
+UsageFault_Handler  → while(1)
+
+Tất cả đều loop vô hạn → IWDG reset sau 4 giây
+8.4 UART Error Recovery
+text
+
+Xem mục 4.3.8 (Error Recovery trong Split Comm)
+• Auto-clear error flags
+• Auto-restart DMA circular receive
+• State machine reset về WAIT_SOF
+9. SƠ ĐỒ LUỒNG DỮ LIỆU
+9.1 Luồng dữ liệu tổng thể (Master)
+text
+
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   PHYSICAL     MATRIX        KEY           HID          USB     │
+│   KEYS         DRIVER      PROCESSOR     REPORTER     DEVICE   │
+│                                                                 │
+│   [Switch] ──► [Scan] ──► [Event] ──►  [Local]                 │
+│                [Debounce]  [Queue]      [Keymap]                │
+│                  (TIM2      (IRQ        [Layer]                 │
+│                   ISR)      safe)       [Resolve]               │
+│                                            │                    │
+│                                            ▼                    │
+│                                       [Modifier                 │
+│                                        + Keys                   │
+│                                        State]                   │
+│                                            │                    │
+│                                            │   ┌──────────┐    │
+│   [Slave   ──► [UART] ──► [Parse] ──► [Remote] │  Build   │    │
+│    Keys]       [DMA]       [CRC]       [Keymap] │  HID     │──► │
+│                [RX]                    [Layer]  │  Report  │    │
+│                                        [Resolve]│          │    │
+│                                            │    │ Compare  │    │
+│                                            ▼    │ with     │    │
+│                                       [Modifier │ Previous │    │
+│                                        + Keys   │          │    │
+│                                        State]   │ Send if  │    │
+│                                            │    │ Changed  │    │
+│                                            ▼    └──────────┘    │
+│                                       [Combined                 │
+│                                        State]                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+9.2 Timing Diagram
+text
+
+Time(ms)  0    1    2    3    4    5    6    7    8    9   10
+          │    │    │    │    │    │    │    │    │    │    │
+TIM2 ISR  ├────┤    ├────┤    ├────┤    ├────┤    ├────┤    │
+          │Scan│    │Scan│    │Scan│    │Scan│    │Scan│    │
+          │Dbnc│    │Dbnc│    │Dbnc│    │Dbnc│    │Dbnc│    │
+          │    │    │    │    │    │    │    │    │    │    │
+MainLoop  ├──┤ ├──┤ ├──┤ ├──┤ ├──┤ ├──┤ ├──┤ ├──┤ ├──┤ ├──┤
+          │WD│ │WD│ │WD│ │WD│ │WD│ │WD│ │WD│ │WD│ │WD│ │WD│
+          │SC│ │SC│ │SC│ │SC│ │SC│ │SC│ │SC│ │SC│ │SC│ │SC│
+          │KP│ │KP│ │KP│ │KP│ │KP│ │KP│ │KP│ │KP│ │KP│ │KP│
+          │HR│ │HR│ │HR│ │HR│ │HR│ │HR│ │HR│ │HR│ │HR│ │HR│
+          │  │ │  │ │  │ │  │ │  │ │  │ │  │ │  │ │  │ │  │
+USB Poll  ├──┤      ├──┤      ├──┤      ├──┤      ├──┤     │
+          │HID│     │HID│     │HID│     │HID│     │HID│    │
+          │Rep│     │Rep│     │Rep│     │Rep│     │Rep│    │
+          │   │     │   │     │   │     │   │     │   │    │
+UART TX        ├──┤                     ├──┤               │
+               │PG│                     │PG│ (every 50ms)  │
+               │  │                     │  │               │
+
+WD = Watchdog Refresh
+SC = SplitComm_Process
+KP = KeyProcessor (local + remote events)
+HR = HIDReporter_SendIfChanged
+PG = Ping/Pong
+HID Rep = USB HID report transmission (1ms poll)
+9.3 Latency Analysis
+text
+
+┌──────────────────────────────────────────────────────────────┐
+│                    LATENCY BREAKDOWN                          │
+├──────────────────────┬───────────────────────────────────────┤
+│  Component           │  Latency                              │
+├──────────────────────┼───────────────────────────────────────┤
+│  Matrix scan period  │  1 ms (TIM2 period)                   │
+│  Debounce            │  0 ms (eager debounce)                │
+│  Key processing      │  < 0.01 ms                            │
+│  HID report build    │  < 0.01 ms                            │
+│  USB poll interval   │  1 ms (bInterval)                     │
+├──────────────────────┼───────────────────────────────────────┤
+│  LOCAL TOTAL         │  1-2 ms (scan + USB poll)             │
+├──────────────────────┼───────────────────────────────────────┤
+│                      │                                       │
+│  Slave matrix scan   │  1 ms                                 │
+│  UART TX (8 bytes)   │  ~0.08 ms @ 1Mbps                    │
+│  UART propagation    │  negligible                           │
+│  Master processing   │  < 0.01 ms                            │
+│  USB poll interval   │  1 ms                                 │
+├──────────────────────┼───────────────────────────────────────┤
+│  REMOTE TOTAL        │  2-3 ms (scan + UART + USB poll)      │
+├──────────────────────┼───────────────────────────────────────┤
+│                      │                                       │
+│  Worst case (both)   │  ~3 ms                                │
+│  Typical case        │  ~2 ms                                │
+│                      │                                       │
+│  Note: Competitive with commercial keyboards (5-10ms)        │
+└──────────────────────┴───────────────────────────────────────┘
+10. CẤU HÌNH HỆ THỐNG
+10.1 Compile-time Configuration (keyboard_config.h)
+text
+
+┌────────────────────────────────────────────────────────────────┐
+│                  CONFIGURABLE PARAMETERS                        │
+├──────────────────────┬─────────┬───────────────────────────────┤
+│  Parameter           │ Value   │ Description                   │
+├──────────────────────┼─────────┼───────────────────────────────┤
+│  KEYBOARD_ROLE       │ 0 or 1  │ 0=Master(Left), 1=Slave(Right)│
+│  MATRIX_ROWS         │ 4       │ Số hàng ma trận               │
+│  MATRIX_COLS         │ 4       │ Số cột ma trận                │
+│  DEBOUNCE_TIME_MS    │ 5       │ Thời gian debounce (ms)       │
+│  MATRIX_SCAN_INTERVAL│ 1       │ Scan interval (ms)            │
+│  MAX_LAYERS          │ 16      │ Số layer tối đa               │
+│  KEY_EVENT_QUEUE_SIZE│ 32      │ Kích thước event queue        │
+│  SPLIT_UART_BAUDRATE │ 1000000 │ UART baudrate (bps)           │
+│  SPLIT_TX_BUFFER_SIZE│ 256     │ TX buffer size                │
+│  SPLIT_RX_BUFFER_SIZE│ 512     │ DMA RX circular buffer        │
+│  SPLIT_HEARTBEAT_MS  │ 50      │ Heartbeat interval            │
+│  SPLIT_TIMEOUT_MS    │ 100     │ Disconnect timeout            │
+└──────────────────────┴─────────┴───────────────────────────────┘
+10.2 Build cho Master vs Slave
+text
+
+Cùng codebase, chỉ thay đổi 1 define:
+
+Master (Left Half):
+  #define KEYBOARD_ROLE  KEYBOARD_ROLE_MASTER  (0)
+  → Bật: USB Device, KeyProcessor, HIDReporter
+  → Chạy: Process local + remote events, gửi HID report
+
+Slave (Right Half):
+  #define KEYBOARD_ROLE  KEYBOARD_ROLE_SLAVE   (1)
+  → Tắt: USB Device, KeyProcessor, HIDReporter
+  → Chạy: Forward local events qua UART, respond PING
+
+Conditional compilation dùng #if:
+  #if (KEYBOARD_ROLE == KEYBOARD_ROLE_MASTER)
+    // Master-only code
+  #else
+    // Slave-only code
+  #endif
+10.3 Memory Map
+text
+
+┌────────────────────────────────────────────────────┐
+│  Flash Memory Layout (256KB)                        │
+├──────────────────┬─────────────────────────────────┤
+│  0x0800_0000     │  Vector Table + Code             │
+│  ...             │  (~64-128KB typical)              │
+│  0x0802_0000     │  KEYMAP_FLASH_ADDR (reserved)    │
+│                  │  (for future flash-stored keymap) │
+│  0x0803_FFFF     │  End of Flash                    │
+└──────────────────┴─────────────────────────────────┘
+
+┌────────────────────────────────────────────────────┐
+│  SRAM Layout (64KB)                                 │
+├──────────────────┬─────────────────────────────────┤
+│  .data           │  Initialized globals            │
+│  .bss            │  Zero-initialized globals       │
+│                  │  • MatrixState_t (~80 bytes)     │
+│                  │  • SplitCommState_t (~600 bytes) │
+│                  │  • KeyProcessorState_t (~50B)    │
+│                  │  • Keymap arrays (static const   │
+│                  │    → actually in Flash)          │
+│                  │  • Event queues (~1KB)           │
+│                  │  • USB buffers (~1KB)            │
+│  Heap ↓          │                                  │
+│  ...             │                                  │
+│  Stack ↑         │  (grows downward)                │
+│  _estack         │  Top of SRAM                    │
+└──────────────────┴─────────────────────────────────┘
+10.4 Peripheral Usage Summary
+text
+
+┌──────────┬───────────────────┬──────────────────────────────┐
+│Peripheral│  Purpose           │  Configuration               │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ GPIOA    │ Matrix rows       │ PA0-PA3: Output PP           │
+│          │ UART              │ PA9-PA10: AF7 USART1         │
+│          │ USB               │ PA11-PA12: AF10 OTG_FS       │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ GPIOB    │ Matrix columns    │ PB0,PB1,PB5,PB6: Input PU   │
+│          │ Layer LEDs        │ PB12-PB13: Output PP         │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ GPIOC    │ Status LED        │ PC13: Output PP              │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ TIM2     │ Matrix scan       │ 1ms period, IRQ priority 1   │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ TIM5     │ HAL timebase      │ 1ms period, IRQ priority 15  │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ USART1   │ Split comm        │ 1Mbps, 8N1, DMA             │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ DMA2_S2  │ USART1 RX         │ Circular, Channel 4          │
+│ DMA2_S7  │ USART1 TX         │ Normal, Channel 4            │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ USB_OTG  │ HID device        │ Full Speed, 4 endpoints      │
+├──────────┼───────────────────┼──────────────────────────────┤
+│ IWDG     │ Watchdog          │ ~4s timeout                  │
+└──────────┴───────────────────┴──────────────────────────────┘
+PHỤ LỤC
+A. Mở rộng trong tương lai (Reserved Features)
+text
+
+┌──────────────────────────────────────────────────────────────┐
+│  Đã thiết kế nhưng chưa implement:                           │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. Flash-stored Keymap                                      │
+│     • KEYMAP_FLASH_ADDR = 0x08020000                         │
+│     • KEYMAP_MAGIC_NUMBER = 0xDACF1234                       │
+│     • Cho phép lưu keymap vào flash, load khi khởi động     │
+│     • Có thể cập nhật qua Raw HID                           │
+│                                                              │
+│  2. NKRO (N-Key Rollover)                                    │
+│     • HID_NKROReport_t đã defined (report_id=0x02)          │
+│     • 15-byte bitmap cho full NKRO                           │
+│     • USBD_HID_SendNKROReport() đã implement                │
+│     • Chưa tích hợp vào report descriptor                   │
+│                                                              │
+│  3. Raw HID Communication                                    │
+│     • Endpoint đã setup (EP0x82 IN, EP0x02 OUT)              │
+│     • 32-byte bidirectional packets                          │
+│     • HID_RawPacket_t: {command, data[31]}                   │
+│     • Dùng cho: keymap programming, firmware update,         │
+│       debug, macro recording                                 │
+│                                                              │
+│  4. Macro System                                             │
+│     • MAX_MACROS = 32                                        │
+│     • MAX_MACRO_STEPS = 64                                   │
+│     • KC_TYPE_MACRO = 0x3 (reserved)                         │
+│                                                              │
+│  5. Tap-Hold                                                 │
+│     • KC_TYPE_TAP_HOLD = 0x5 (reserved)                      │
+│     • Dual function keys (tap=key, hold=modifier/layer)      │
+│                                                              │
+│  6. System Control                                           │
+│     • KC_TYPE_SYSTEM = 0x4 (reserved)                        │
+│     • Power, sleep, wake controls                            │
+│                                                              │
+│  7. SYNC_REQ/SYNC_RSP packets                                │
+│     • 0x10/0x11 packet types defined                         │
+│     • For initial handshake/state sync                       │
+│                                                              │
+│  8. Full 8×6 matrix                                          │
+│     • Keymap commented out in default_keymap.h               │
+│     • Ready for Dactyl full build                            │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+B. Dependency Graph
+text
+
+main.c
+├── matrix_driver.c/h
+│   └── keyboard_config.h
+├── key_processor.c/h
+│   ├── keyboard_config.h
+│   ├── keycode_defs.h
+│   ├── default_keymap.h
+│   └── matrix_driver.h (KeyEvent_t)
+├── split_comm.c/h
+│   ├── keyboard_config.h
+│   ├── matrix_driver.h (KeyEvent_t)
+│   ├── crc16.c/h
+│   └── usart.h (huart1)
+├── hid_reporter.c/h
+│   ├── key_processor.h
+│   └── usbd_hid_custom.h
+├── usbd_hid_custom.c/h
+│   ├── usbd_core.h
+│   ├── usbd_ctlreq.h
+│   └── usbd_def.h
+├── usb_device.c/h
+│   ├── usbd_core.h
+│   ├── usbd_desc.c/h
+│   └── usbd_hid_custom.h
+├── gpio.c/h → keyboard_config.h
+├── dma.c/h
+├── tim.c/h
+├── usart.c/h
+├── iwdg.c/h
+└── usbd_conf.c/h
+    └── HAL PCD callbacks

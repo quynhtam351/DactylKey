@@ -1,4 +1,6 @@
-../Core/Src/main.c:78:5:main	64	static
-../Core/Src/main.c:197:6:SystemClock_Config	88	static
-../Core/Src/main.c:250:6:HAL_TIM_PeriodElapsedCallback	16	static
-../Core/Src/main.c:271:6:Error_Handler	4	static,ignoring_inline_asm
+../Core/Src/main.c:27:9:Role_Detect	16	static
+../Core/Src/main.c:60:5:main	72	static
+../Core/Src/main.c:165:13:Boot_IndicateRole	16	static
+../Core/Src/main.c:187:6:SystemClock_Config	88	static
+../Core/Src/main.c:218:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:229:6:Error_Handler	4	static,ignoring_inline_asm

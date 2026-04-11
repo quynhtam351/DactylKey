@@ -2,8 +2,8 @@
 DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
 ============================================================
 
-📄 Số file: 43
-📦 Tổng kích thước: 213.4KB
+📄 Số file: 45
+📦 Tổng kích thước: 232.3KB
 
 ## Cấu trúc
 ```
@@ -15,12 +15,13 @@ DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
   gpio.h (1.3KB)
   hid_reporter.h (413B)
   iwdg.h (1.3KB)
-  key_processor.h (1.6KB)
-  keyboard_config.h (4.4KB)
+  key_processor.h (1.2KB)
+  keyboard_config.h (5.8KB)
   keycode_defs.h (6.4KB)
-  main.h (2.0KB)
-  matrix_driver.h (4.4KB)
-  split_comm.h (3.9KB)
+  led_manager.h (2.4KB)
+  main.h (460B)
+  matrix_driver.h (1.5KB)
+  split_comm.h (4.6KB)
   stm32f4xx_hal_conf.h (19.6KB)
   stm32f4xx_it.h (2.1KB)
   tim.h (1.3KB)
@@ -30,16 +31,17 @@ DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
 [Core\Src]
   crc16.c (562B)
   dma.c (1.7KB)
-  gpio.c (2.1KB)
-  hid_reporter.c (1.4KB)
+  gpio.c (2.5KB)
+  hid_reporter.c (3.4KB)
   iwdg.c (1.4KB)
-  key_processor.c (6.9KB)
-  main.c (8.6KB)
-  matrix_driver.c (6.6KB)
-  split_comm.c (13.3KB)
+  key_processor.c (11.4KB)
+  led_manager.c (5.8KB)
+  main.c (7.6KB)
+  matrix_driver.c (10.4KB)
+  split_comm.c (17.6KB)
   stm32f4xx_hal_msp.c (2.2KB)
   stm32f4xx_hal_timebase_tim.c (4.4KB)
-  stm32f4xx_it.c (7.3KB)
+  stm32f4xx_it.c (3.3KB)
   syscalls.c (2.8KB)
   sysmem.c (2.7KB)
   system_stm32f4xx.c (26.1KB)
@@ -52,8 +54,8 @@ DỰ ÁN BÀN PHÍM DACTYL VỚI STM32
   usb_device.h (2.3KB)
   usbd_desc.c (3.8KB)
   usbd_desc.h (2.9KB)
-  usbd_hid_custom.c (18.5KB)
-  usbd_hid_custom.h (7.1KB)
+  usbd_hid_custom.c (23.0KB)
+  usbd_hid_custom.h (6.3KB)
 
 [USB_DEVICE\Target]
   usbd_conf.c (19.1KB)
@@ -281,6 +283,8 @@ typedef struct {
     bool        changed;
     uint8_t     active_layer;
     uint32_t    layer_state;
+
+    bool        rollover_overflow;
 } KeyProcessorState_t;
 
 void KeyProcessor_Init(void);
@@ -321,9 +325,16 @@ extern "C" {
 #define KEYBOARD_VERSION        0x0100
 #define FIRMWARE_VERSION        0x0100
 
-#define KEYBOARD_ROLE_MASTER    0
-#define KEYBOARD_ROLE_SLAVE     1
-#define KEYBOARD_ROLE           KEYBOARD_ROLE_MASTER
+#define KEYBOARD_ROLE_MASTER    0U
+#define KEYBOARD_ROLE_SLAVE     1U
+#define KEYBOARD_ROLE_UNKNOWN   0xFFU
+
+extern uint8_t g_keyboard_role;
+
+#define KEYBOARD_ROLE_FALLBACK  KEYBOARD_ROLE_MASTER
+
+#define IS_MASTER()     (g_keyboard_role == KEYBOARD_ROLE_MASTER)
+#define IS_SLAVE()      (g_keyboard_role == KEYBOARD_ROLE_SLAVE)
 
 #define MATRIX_ROWS             4
 #define MATRIX_COLS             4
@@ -340,7 +351,6 @@ extern "C" {
 #define ROW3_PIN                GPIO_PIN_3
 
 #define ROW_PINS_ARRAY          { ROW0_PIN, ROW1_PIN, ROW2_PIN, ROW3_PIN }
-
 #define ROW_ALL_PINS            (ROW0_PIN | ROW1_PIN | ROW2_PIN | ROW3_PIN)
 
 #define COL_GPIO_PORT           GPIOB
@@ -348,13 +358,10 @@ extern "C" {
 #define COL0_PIN                GPIO_PIN_0
 #define COL1_PIN                GPIO_PIN_1
 #define COL2_PIN                GPIO_PIN_6
-#define COL3_PIN                GPIO_PIN_3
+#define COL3_PIN                GPIO_PIN_5
 
 #define COL_PINS_ARRAY          { COL0_PIN, COL1_PIN, COL2_PIN, COL3_PIN }
-
 #define COL_ALL_PINS            (COL0_PIN | COL1_PIN | COL2_PIN | COL3_PIN)
-
-#define COL_PIN_OFFSET          0
 
 #define LED_STATUS_GPIO_PORT    GPIOC
 #define LED_STATUS_PIN          GPIO_PIN_13
@@ -386,6 +393,10 @@ extern "C" {
 #define KEYMAP_FLASH_ADDR       0x08020000
 #define KEYMAP_MAGIC_NUMBER     0xDACF1234
 #define KEYMAP_VERSION          1
+
+#define VBUS_DETECT_SETTLE_MS   10U
+
+#define VBUS_DETECT_SAMPLES     3U
 
 #ifdef __cplusplus
 }
@@ -550,6 +561,49 @@ typedef uint16_t keycode_t;
 #endif
 ```
 
+### `Core\Inc\led_manager.h`
+```c
+#ifndef __LED_MANAGER_H
+#define __LED_MANAGER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "keyboard_config.h"
+
+#define HID_LED_NUM_LOCK        (1U << 0)
+#define HID_LED_CAPS_LOCK       (1U << 1)
+#define HID_LED_SCROLL_LOCK     (1U << 2)
+#define HID_LED_COMPOSE         (1U << 3)
+#define HID_LED_KANA            (1U << 4)
+
+typedef enum {
+    LED_STATUS_OFF          = 0,
+    LED_STATUS_BLINK_2HZ    = 1,
+    LED_STATUS_BLINK_4HZ    = 2,
+} LedStatusPattern_t;
+
+void    LedManager_Init(void);
+
+void    LedManager_SetStatusPattern(LedStatusPattern_t pattern);
+
+void    LedManager_SetHIDLeds(uint8_t led_bits);
+uint8_t LedManager_GetHIDLeds(void);
+
+void    LedManager_SetLayerState(uint32_t layer_state);
+
+void    LedManager_Update(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+```
+
 ### `Core\Inc\main.h`
 ```c
 #ifndef __MAIN_H
@@ -560,6 +614,8 @@ extern "C" {
 #endif
 
 #include "stm32f4xx_hal.h"
+
+uint8_t Role_Detect(void);
 
 void Error_Handler(void);
 
@@ -606,6 +662,7 @@ typedef struct {
     DebounceStatus_t status;
     uint8_t          timer;
     bool             stable_state;
+    bool             pending_state;
 } DebounceState_t;
 
 typedef struct {
@@ -676,10 +733,12 @@ extern "C" {
 #define SPLIT_PKT_SYNC_REQ      0x10U
 #define SPLIT_PKT_SYNC_RSP      0x11U
 
-#define SPLIT_MAX_PAYLOAD       16U
-#define SPLIT_HEADER_SIZE       3U
-#define SPLIT_CRC_SIZE          2U
-#define SPLIT_MAX_PACKET_SIZE   (SPLIT_HEADER_SIZE + SPLIT_MAX_PAYLOAD + SPLIT_CRC_SIZE)
+#define SPLIT_MAX_PAYLOAD           16U
+#define SPLIT_HEADER_SIZE           3U
+#define SPLIT_CRC_SIZE              2U
+#define SPLIT_MAX_PACKET_SIZE       (SPLIT_HEADER_SIZE + SPLIT_MAX_PAYLOAD + SPLIT_CRC_SIZE)
+#define SPLIT_TX_QUEUE_SIZE         16U
+#define SPLIT_RX_PARSE_TIMEOUT_MS   10U
 
 typedef enum {
     RX_STATE_WAIT_SOF = 0,
@@ -713,39 +772,51 @@ typedef enum {
 } SplitConnStatus_t;
 
 typedef struct {
+    uint8_t data[SPLIT_MAX_PACKET_SIZE];
+    uint8_t length;
+} SplitTxEntry_t;
+
+typedef struct {
+    SplitTxEntry_t  entries[SPLIT_TX_QUEUE_SIZE];
+    uint8_t         head;
+    uint8_t         tail;
+    uint8_t         count;
+} SplitTxQueue_t;
+
+typedef struct {
     SplitConnStatus_t   status;
     uint32_t            last_rx_tick;
     uint32_t            last_heartbeat_tick;
     uint32_t            rx_packet_count;
     uint32_t            rx_error_count;
     uint32_t            tx_packet_count;
+    uint32_t            tx_drop_count;
 
     SplitRxState_t      rx_state;
     SplitPacket_t       rx_packet;
     uint8_t             rx_payload_idx;
+    uint32_t            rx_state_timestamp;
 
     uint8_t             rx_dma_buf[SPLIT_RX_BUFFER_SIZE];
     volatile uint16_t   rx_dma_read_pos;
 
     uint8_t             tx_buf[SPLIT_MAX_PACKET_SIZE];
     volatile bool       tx_busy;
+    SplitTxQueue_t      tx_queue;
 } SplitCommState_t;
 
 void SplitComm_Init(void);
-
 void SplitComm_Process(void);
 
 bool SplitComm_SendKeyEvent(uint8_t key_index, uint8_t state);
-
 bool SplitComm_SendKeyState(const uint8_t *row_state, uint8_t num_rows);
 
-SplitConnStatus_t SplitComm_GetStatus(void);
-
-bool SplitComm_GetRemoteEvent(KeyEvent_t *event);
-
-bool SplitComm_HasRemoteEvent(void);
+SplitConnStatus_t   SplitComm_GetStatus(void);
+bool                SplitComm_GetRemoteEvent(KeyEvent_t *event);
+bool                SplitComm_HasRemoteEvent(void);
 
 void SplitComm_TxCompleteCallback(void);
+void SplitComm_UART_IdleCallback(void);
 
 const SplitCommState_t* SplitComm_GetState(void);
 
@@ -1276,6 +1347,8 @@ void MX_GPIO_Init(void)
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOH_CLK_ENABLE();
 
+    GPIOB->AFR[0] &= ~(0xFUL << (3 * 4));
+
     HAL_GPIO_WritePin(ROW_GPIO_PORT, ROW_ALL_PINS, GPIO_PIN_SET);
 
     GPIO_InitStruct.Pin   = ROW_ALL_PINS;
@@ -1313,12 +1386,14 @@ void MX_GPIO_Init(void)
 #include "key_processor.h"
 #include <string.h>
 
+#define HID_ERROR_ROLLOVER      0x01U
+
 static HID_KeyboardReport_t s_last_report;
 static HID_KeyboardReport_t s_current_report;
 
 void HIDReporter_Init(void)
 {
-    memset(&s_last_report, 0, sizeof(HID_KeyboardReport_t));
+    memset(&s_last_report,    0, sizeof(HID_KeyboardReport_t));
     memset(&s_current_report, 0, sizeof(HID_KeyboardReport_t));
 
     s_last_report.report_id    = HID_REPORT_ID_KEYBOARD;
@@ -1333,11 +1408,17 @@ void HIDReporter_SendIfChanged(USBD_HandleTypeDef *pdev)
 
     s_current_report.report_id = HID_REPORT_ID_KEYBOARD;
     s_current_report.modifiers = state->modifiers;
-    s_current_report.reserved  = 0x00;
+    s_current_report.reserved  = 0x00U;
 
-    memset(s_current_report.keycodes, 0, 6);
-    uint8_t count = (state->pressed_count > 6) ? 6 : state->pressed_count;
-    memcpy(s_current_report.keycodes, state->pressed_keys, count);
+    if (state->rollover_overflow) {
+
+        memset(s_current_report.keycodes, HID_ERROR_ROLLOVER, 6);
+    } else {
+
+        memset(s_current_report.keycodes, 0, 6);
+        uint8_t count = (state->pressed_count > 6) ? 6 : state->pressed_count;
+        memcpy(s_current_report.keycodes, state->pressed_keys, count);
+    }
 
     if (memcmp(&s_current_report, &s_last_report,
                sizeof(HID_KeyboardReport_t)) != 0)
@@ -1349,6 +1430,7 @@ void HIDReporter_SendIfChanged(USBD_HandleTypeDef *pdev)
             memcpy(&s_last_report, &s_current_report,
                    sizeof(HID_KeyboardReport_t));
         }
+
     }
 
     KeyProcessor_ClearChanged();
@@ -1389,18 +1471,23 @@ static const keycode_t *s_keymap_right[MAX_LAYERS];
 static keycode_t s_active_local[MATRIX_ROWS * MATRIX_COLS];
 static keycode_t s_active_remote[MATRIX_ROWS * MATRIX_COLS];
 
+static uint8_t s_overflow_count;
+
 static keycode_t _ResolveKeycodeLeft(uint8_t row, uint8_t col);
 static keycode_t _ResolveKeycodeRight(uint8_t row, uint8_t col);
 static void      _HandleBasicKey(keycode_t kc, KeyState_t state);
 static void      _HandleLayerAction(keycode_t kc, KeyState_t state);
 static void      _AddPressedKey(uint8_t hid_code);
 static void      _RemovePressedKey(uint8_t hid_code);
+static void      _UpdateOverflowFlag(void);
 
 void KeyProcessor_Init(void)
 {
     memset(&s_state, 0, sizeof(KeyProcessorState_t));
-    memset(s_active_local, 0, sizeof(s_active_local));
+    memset(s_active_local,  0, sizeof(s_active_local));
     memset(s_active_remote, 0, sizeof(s_active_remote));
+
+    s_overflow_count = 0;
 
     s_keymap_left[0] = &KEYMAP_LEFT_LAYER0[0][0];
     s_keymap_left[1] = &KEYMAP_LEFT_LAYER1[0][0];
@@ -1436,9 +1523,7 @@ void KeyProcessor_HandleLocalEvent(const KeyEvent_t *event)
 
     if (kc == KC_NO || kc == KC_TRANSPARENT) return;
 
-    uint8_t type = KC_TYPE(kc);
-
-    switch (type) {
+    switch (KC_TYPE(kc)) {
     case KC_TYPE_BASIC:
         _HandleBasicKey(kc, event->state);
         break;
@@ -1468,9 +1553,7 @@ void KeyProcessor_HandleRemoteEvent(const KeyEvent_t *event)
 
     if (kc == KC_NO || kc == KC_TRANSPARENT) return;
 
-    uint8_t type = KC_TYPE(kc);
-
-    switch (type) {
+    switch (KC_TYPE(kc)) {
     case KC_TYPE_BASIC:
         _HandleBasicKey(kc, event->state);
         break;
@@ -1550,6 +1633,7 @@ static void _HandleBasicKey(keycode_t kc, KeyState_t state)
             s_state.modifiers &= ~mod_bit;
         }
         s_state.changed = true;
+
     } else {
         if (state == KEY_STATE_PRESSED) {
             _AddPressedKey((uint8_t)hid_code);
@@ -1561,7 +1645,7 @@ static void _HandleBasicKey(keycode_t kc, KeyState_t state)
 
 static void _HandleLayerAction(keycode_t kc, KeyState_t state)
 {
-    uint8_t action = (KC_DATA(kc) >> 8) & 0x0F;
+    uint8_t action       = (KC_DATA(kc) >> 8) & 0x0F;
     uint8_t target_layer = (KC_DATA(kc) >> 4) & 0x0F;
 
     if (target_layer >= MAX_LAYERS) return;
@@ -1573,6 +1657,7 @@ static void _HandleLayerAction(keycode_t kc, KeyState_t state)
         } else {
             s_state.layer_state &= ~(1UL << target_layer);
         }
+
         s_state.layer_state |= 0x01;
         break;
 
@@ -1596,30 +1681,172 @@ static void _HandleLayerAction(keycode_t kc, KeyState_t state)
 
 static void _AddPressedKey(uint8_t hid_code)
 {
-    for (uint8_t i = 0; i < s_state.pressed_count; i++) {
+
+    for (uint8_t i = 0; i < s_state.pressed_count && i < 6; i++) {
         if (s_state.pressed_keys[i] == hid_code) return;
     }
 
     if (s_state.pressed_count < 6) {
         s_state.pressed_keys[s_state.pressed_count] = hid_code;
         s_state.pressed_count++;
-        s_state.changed = true;
+    } else {
+
+        s_overflow_count++;
     }
+
+    _UpdateOverflowFlag();
+    s_state.changed = true;
 }
 
 static void _RemovePressedKey(uint8_t hid_code)
 {
+
     for (uint8_t i = 0; i < s_state.pressed_count; i++) {
         if (s_state.pressed_keys[i] == hid_code) {
+
             for (uint8_t j = i; j < s_state.pressed_count - 1; j++) {
                 s_state.pressed_keys[j] = s_state.pressed_keys[j + 1];
             }
             s_state.pressed_count--;
             s_state.pressed_keys[s_state.pressed_count] = 0;
+
+            if (s_overflow_count > 0) {
+                s_overflow_count--;
+            }
+
+            _UpdateOverflowFlag();
             s_state.changed = true;
             return;
         }
     }
+
+    if (s_overflow_count > 0) {
+        s_overflow_count--;
+        _UpdateOverflowFlag();
+        s_state.changed = true;
+    }
+}
+
+static void _UpdateOverflowFlag(void)
+{
+    s_state.rollover_overflow = (s_overflow_count > 0);
+
+    s_state.active_layer = 0;
+    for (int layer = MAX_LAYERS - 1; layer > 0; layer--) {
+        if (s_state.layer_state & (1UL << layer)) {
+            s_state.active_layer = (uint8_t)layer;
+            break;
+        }
+    }
+}
+```
+
+### `Core\Src\led_manager.c`
+```c
+#include "led_manager.h"
+#include "stm32f4xx_hal.h"
+#include "keyboard_config.h"
+#include <string.h>
+
+typedef struct {
+    LedStatusPattern_t  status_pattern;
+    uint32_t            blink_tick;
+    uint8_t             blink_phase;
+
+    uint8_t             hid_leds;
+    uint32_t            layer_state;
+} LedManagerState_t;
+
+static LedManagerState_t s_led;
+
+static inline void _SetLED(GPIO_TypeDef *port, uint16_t pin, bool on)
+{
+
+    HAL_GPIO_WritePin(port, pin, on ? GPIO_PIN_RESET : GPIO_PIN_SET);
+}
+
+void LedManager_Init(void)
+{
+    memset(&s_led, 0, sizeof(LedManagerState_t));
+
+    s_led.status_pattern = LED_STATUS_OFF;
+    s_led.blink_tick     = HAL_GetTick();
+    s_led.blink_phase    = 0U;
+
+    _SetLED(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, false);
+    _SetLED(LED_LAYER_GPIO_PORT,  LED_LAYER1_PIN, false);
+    _SetLED(LED_LAYER_GPIO_PORT,  LED_LAYER2_PIN, false);
+}
+
+void LedManager_SetStatusPattern(LedStatusPattern_t pattern)
+{
+    if (s_led.status_pattern == pattern) return;
+
+    s_led.status_pattern = pattern;
+
+    s_led.blink_tick  = HAL_GetTick();
+    s_led.blink_phase = 0U;
+}
+
+void LedManager_SetHIDLeds(uint8_t led_bits)
+{
+    s_led.hid_leds = led_bits & 0x1FU;
+}
+
+uint8_t LedManager_GetHIDLeds(void)
+{
+    return s_led.hid_leds;
+}
+
+void LedManager_SetLayerState(uint32_t layer_state)
+{
+    s_led.layer_state = layer_state;
+}
+
+void LedManager_Update(void)
+{
+    uint32_t now = HAL_GetTick();
+
+    switch (s_led.status_pattern) {
+
+    case LED_STATUS_OFF:
+
+        _SetLED(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, false);
+        break;
+
+    case LED_STATUS_BLINK_2HZ:
+
+        if ((now - s_led.blink_tick) >= 250U) {
+            s_led.blink_tick   = now;
+            s_led.blink_phase ^= 1U;
+        }
+        _SetLED(LED_STATUS_GPIO_PORT, LED_STATUS_PIN,
+                (s_led.blink_phase & 1U) != 0U);
+        break;
+
+    case LED_STATUS_BLINK_4HZ:
+
+        if ((now - s_led.blink_tick) >= 125U) {
+            s_led.blink_tick   = now;
+            s_led.blink_phase ^= 1U;
+        }
+        _SetLED(LED_STATUS_GPIO_PORT, LED_STATUS_PIN,
+                (s_led.blink_phase & 1U) != 0U);
+        break;
+
+    default:
+        _SetLED(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, false);
+        break;
+    }
+
+    if (IS_MASTER()) {
+        bool non_default = (s_led.layer_state & ~(0x01UL)) != 0U;
+        _SetLED(LED_LAYER_GPIO_PORT, LED_LAYER1_PIN, non_default);
+
+        bool caps = (s_led.hid_leds & HID_LED_CAPS_LOCK) != 0U;
+        _SetLED(LED_LAYER_GPIO_PORT, LED_LAYER2_PIN, caps);
+    }
+
 }
 ```
 
@@ -1639,161 +1866,186 @@ static void _RemovePressedKey(uint8_t hid_code)
 #include "key_processor.h"
 #include "hid_reporter.h"
 #include "split_comm.h"
-
+#include "led_manager.h"
 #include "iwdg.h"
 
-void SystemClock_Config(void);
+uint8_t g_keyboard_role = KEYBOARD_ROLE_UNKNOWN;
 
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_SLAVE)
-static void Slave_ForwardEvents(void);
-#endif
+void SystemClock_Config(void);
+static void Boot_IndicateRole(void);
+
+uint8_t Role_Detect(void)
+{
+    __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+    HAL_Delay(VBUS_DETECT_SETTLE_MS);
+
+    uint8_t vbus_count = 0U;
+    for (uint8_t i = 0U; i < VBUS_DETECT_SAMPLES; i++) {
+        if (USB_OTG_FS->GOTGCTL & USB_OTG_GOTGCTL_BSVLD) {
+            vbus_count++;
+        }
+        HAL_Delay(1U);
+    }
+
+    uint8_t role;
+    if (vbus_count == VBUS_DETECT_SAMPLES) {
+        role = KEYBOARD_ROLE_MASTER;
+    } else if (vbus_count == 0U) {
+        role = KEYBOARD_ROLE_SLAVE;
+    } else {
+        role = KEYBOARD_ROLE_FALLBACK;
+    }
+
+    if (role == KEYBOARD_ROLE_SLAVE) {
+        __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
+    }
+
+    return role;
+}
 
 int main(void)
 {
+    HAL_Init();
+    SystemClock_Config();
 
-  HAL_Init();
+    g_keyboard_role = Role_Detect();
 
-  SystemClock_Config();
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_TIM2_Init();
+    MX_USART1_UART_Init();
 
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_TIM2_Init();
-  MX_USART1_UART_Init();
-  Matrix_Init();
-  SplitComm_Init();
-  MX_IWDG_Init();
+    Matrix_Init();
+    LedManager_Init();
+    SplitComm_Init();
 
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_MASTER)
-  MX_USB_DEVICE_Init();
+    MX_IWDG_Init();
 
-  KeyProcessor_Init();
-  HIDReporter_Init();
-#endif
+    if (IS_MASTER()) {
+        MX_USB_DEVICE_Init();
+        KeyProcessor_Init();
+        HIDReporter_Init();
+    }
 
-  HAL_TIM_Base_Start_IT(&htim2);
+    HAL_TIM_Base_Start_IT(&htim2);
+    Boot_IndicateRole();
 
-  for (int i = 0; i < 6; i++) {
-      HAL_GPIO_TogglePin(LED_STATUS_GPIO_PORT, LED_STATUS_PIN);
-      HAL_Delay(100);
-  }
-  HAL_GPIO_WritePin(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, GPIO_PIN_SET);
+    while (1)
+    {
+        HAL_IWDG_Refresh(&hiwdg);
 
-  while (1)
-  {
+        SplitComm_Process();
 
-	  HAL_IWDG_Refresh(&hiwdg);
-      SplitComm_Process();
+        if (IS_MASTER()) {
 
-	#if (KEYBOARD_ROLE == KEYBOARD_ROLE_MASTER)
+            KeyEvent_t event;
+            while (Matrix_GetEvent(&event)) {
+                KeyProcessor_HandleLocalEvent(&event);
+            }
 
-      KeyEvent_t event;
-      while (Matrix_GetEvent(&event)) {
-          KeyProcessor_HandleLocalEvent(&event);
-      }
+            KeyEvent_t remote_event;
+            while (SplitComm_GetRemoteEvent(&remote_event)) {
+                KeyProcessor_HandleRemoteEvent(&remote_event);
+            }
 
-      KeyEvent_t remote_event;
-      while (SplitComm_GetRemoteEvent(&remote_event)) {
-          KeyProcessor_HandleRemoteEvent(&remote_event);
-      }
+            if (USBD_HID_KeyboardReady(&hUsbDeviceFS)) {
+                HIDReporter_SendIfChanged(&hUsbDeviceFS);
+            }
 
-      if (USBD_HID_KeyboardReady(&hUsbDeviceFS)) {
-          HIDReporter_SendIfChanged(&hUsbDeviceFS);
-      }
+            uint8_t raw_buf[HID_RAW_EP_SIZE];
+            if (USBD_HID_GetRawData(raw_buf)) {
+                (void)raw_buf;
+            }
 
-      uint8_t raw_buf[HID_RAW_EP_SIZE];
-      if (USBD_HID_GetRawData(raw_buf)) {
+            if (SplitComm_GetStatus() == SPLIT_CONNECTED) {
+                if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
+                    LedManager_SetStatusPattern(LED_STATUS_BLINK_4HZ);
+                }
+            }
 
-      }
+            const KeyProcessorState_t *kp = KeyProcessor_GetState();
+            LedManager_SetLayerState(kp->layer_state);
 
-      const KeyProcessorState_t *kp = KeyProcessor_GetState();
-      if (kp->layer_state & 0x02) {
-          HAL_GPIO_WritePin(LED_LAYER_GPIO_PORT, LED_LAYER1_PIN, GPIO_PIN_RESET);
-      } else {
-          HAL_GPIO_WritePin(LED_LAYER_GPIO_PORT, LED_LAYER1_PIN, GPIO_PIN_SET);
-      }
+        } else {
 
-	#else
+            KeyEvent_t ev;
+            while (Matrix_GetEvent(&ev)) {
+                SplitComm_SendKeyEvent(ev.key_index,
+                    (ev.state == KEY_STATE_PRESSED) ? 1U : 0U);
+            }
+        }
 
-	Slave_ForwardEvents();
-	#endif
-  }
-}
-
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_SLAVE)
-
-static void Slave_ForwardEvents(void)
-{
-    KeyEvent_t event;
-    while (Matrix_GetEvent(&event)) {
-        SplitComm_SendKeyEvent(event.key_index,
-                               (event.state == KEY_STATE_PRESSED) ? 1 : 0);
+        LedManager_Update();
     }
 }
-#endif
+
+static void Boot_IndicateRole(void)
+{
+
+    uint8_t blinks = IS_MASTER() ? 2U : 4U;
+    for (uint8_t i = 0U; i < blinks; i++) {
+        HAL_GPIO_WritePin(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, GPIO_PIN_RESET);
+        HAL_Delay(100U);
+        HAL_GPIO_WritePin(LED_STATUS_GPIO_PORT, LED_STATUS_PIN, GPIO_PIN_SET);
+        HAL_Delay(100U);
+    }
+    HAL_Delay(200U);
+
+}
 
 void SystemClock_Config(void)
 {
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
+    __HAL_RCC_PWR_CLK_ENABLE();
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
 
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 25;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-  RCC_OscInitStruct.PLL.PLLQ = 7;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+    RCC_OscInitStruct.HSEState       = RCC_HSE_ON;
+    RCC_OscInitStruct.PLL.PLLState   = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource  = RCC_PLLSOURCE_HSE;
+    RCC_OscInitStruct.PLL.PLLM       = 25;
+    RCC_OscInitStruct.PLL.PLLN       = 336;
+    RCC_OscInitStruct.PLL.PLLP       = RCC_PLLP_DIV4;
+    RCC_OscInitStruct.PLL.PLLQ       = 7;
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+        Error_Handler();
+    }
 
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    RCC_ClkInitStruct.ClockType      = RCC_CLOCKTYPE_HCLK  | RCC_CLOCKTYPE_SYSCLK |
+                                       RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    RCC_ClkInitStruct.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
+        Error_Handler();
+    }
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-
-  if (htim->Instance == TIM5)
-  {
-    HAL_IncTick();
-  }
-
-  if (htim->Instance == TIM2) {
-	    Matrix_DebounceTask();
-	    Matrix_Scan();
-  }
-
+    if (htim->Instance == TIM5) {
+        HAL_IncTick();
+    }
+    if (htim->Instance == TIM2) {
+        Matrix_DebounceTask();
+        Matrix_Scan();
+    }
 }
 
 void Error_Handler(void)
 {
-
-  __disable_irq();
-  while (1)
-  {
-  }
-
+    __disable_irq();
+    while (1) { }
 }
-#ifdef USE_FULL_ASSERT
 
+#ifdef USE_FULL_ASSERT
 void assert_failed(uint8_t *file, uint32_t line)
 {
-
+    (void)file;
+    (void)line;
 }
 #endif
 ```
@@ -1825,9 +2077,10 @@ void Matrix_Init(void)
 
     for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
         for (uint8_t col = 0; col < MATRIX_COLS; col++) {
-            s_matrix_state.debounce[row][col].status       = DEBOUNCE_STABLE;
-            s_matrix_state.debounce[row][col].timer        = 0;
-            s_matrix_state.debounce[row][col].stable_state = false;
+            s_matrix_state.debounce[row][col].status        = DEBOUNCE_STABLE;
+            s_matrix_state.debounce[row][col].timer         = 0;
+            s_matrix_state.debounce[row][col].stable_state  = false;
+            s_matrix_state.debounce[row][col].pending_state = false;
         }
         s_matrix_state.raw[row]       = 0x00;
         s_matrix_state.debounced[row] = 0x00;
@@ -1847,6 +2100,7 @@ void Matrix_Scan(void)
 
 void Matrix_DebounceTask(void)
 {
+
     for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
         for (uint8_t col = 0; col < MATRIX_COLS; col++) {
             DebounceState_t *db = &s_matrix_state.debounce[row][col];
@@ -1854,9 +2108,6 @@ void Matrix_DebounceTask(void)
             if (db->status == DEBOUNCE_DEBOUNCING) {
                 if (db->timer > 0) {
                     db->timer--;
-                }
-                if (db->timer == 0) {
-                    db->status = DEBOUNCE_STABLE;
                 }
             }
         }
@@ -1948,20 +2199,48 @@ static void _Matrix_ApplyDebounce(void)
             bool raw_pressed = (s_matrix_state.raw[row] >> col) & 0x01;
 
             if (db->status == DEBOUNCE_STABLE) {
-                if (raw_pressed != db->stable_state) {
-                    db->stable_state = raw_pressed;
-                    db->status       = DEBOUNCE_DEBOUNCING;
-                    db->timer        = DEBOUNCE_TIME_MS;
 
-                    if (raw_pressed) {
-                        s_matrix_state.debounced[row] |= (1 << col);
+                if (raw_pressed != db->stable_state) {
+                    db->status        = DEBOUNCE_DEBOUNCING;
+                    db->pending_state = raw_pressed;
+                    db->timer         = DEBOUNCE_TIME_MS;
+                }
+
+            } else {
+
+                if (raw_pressed == db->stable_state) {
+
+                    db->status = DEBOUNCE_STABLE;
+                    db->timer  = 0;
+
+                } else if (db->timer == 0) {
+
+                    if (raw_pressed == db->pending_state) {
+
+                        db->stable_state = raw_pressed;
+                        db->status       = DEBOUNCE_STABLE;
+
+                        if (raw_pressed) {
+                            s_matrix_state.debounced[row] |= (1 << col);
+                        } else {
+                            s_matrix_state.debounced[row] &= ~(1 << col);
+                        }
+
+                        s_matrix_state.changed = true;
+                        _Matrix_GenerateEvents(row, col, raw_pressed);
+
                     } else {
-                        s_matrix_state.debounced[row] &= ~(1 << col);
+
+                        db->pending_state = raw_pressed;
+                        db->timer         = DEBOUNCE_TIME_MS;
                     }
 
-                    s_matrix_state.changed = true;
-                    _Matrix_GenerateEvents(row, col, raw_pressed);
+                } else if (raw_pressed != db->pending_state) {
+
+                    db->pending_state = raw_pressed;
+                    db->timer         = DEBOUNCE_TIME_MS;
                 }
+
             }
         }
     }
@@ -2011,45 +2290,62 @@ static inline void _Row_DriveLow(uint8_t row)
 #include "split_comm.h"
 #include "crc16.h"
 #include "usart.h"
+#include "keyboard_config.h"
+#include "led_manager.h"
 #include <string.h>
 
 static SplitCommState_t s_comm;
 
-#define REMOTE_EVENT_QUEUE_SIZE  16
-static KeyEvent_t   s_remote_events[REMOTE_EVENT_QUEUE_SIZE];
-static volatile uint8_t s_remote_head = 0;
-static volatile uint8_t s_remote_tail = 0;
+#define REMOTE_EVENT_QUEUE_SIZE  16U
+
+static KeyEvent_t       s_remote_events[REMOTE_EVENT_QUEUE_SIZE];
+static volatile uint8_t s_remote_head  = 0;
+static volatile uint8_t s_remote_tail  = 0;
 static volatile uint8_t s_remote_count = 0;
 
-static bool     _SendPacket(uint8_t type, const uint8_t *payload, uint8_t len);
+static bool     _BuildAndQueuePacket(uint8_t type,
+                                     const uint8_t *payload, uint8_t len);
+static bool     _TxStartFromBuf(const uint8_t *data, uint8_t len);
+static bool     _TxQueue_Enqueue(const uint8_t *data, uint8_t len);
+static bool     _TxQueue_Dequeue(uint8_t *data, uint8_t *len);
+static void     _TxTryDrainQueue(void);
+
 static void     _ProcessRxByte(uint8_t byte);
 static void     _HandlePacket(const SplitPacket_t *pkt);
 static void     _HandleKeyEvent(const SplitPacket_t *pkt);
 static void     _HandleKeyState(const SplitPacket_t *pkt);
 static void     _HandlePing(void);
 static void     _HandlePong(void);
+
 static void     _PushRemoteEvent(const KeyEvent_t *event);
 static void     _MasterHeartbeat(void);
 static void     _CheckTimeout(void);
+static void     _CheckRxParseTimeout(void);
+static void     _UpdateStatusPattern(void);
 static uint16_t _DMA_GetRxWritePos(void);
 
 void SplitComm_Init(void)
 {
     memset(&s_comm, 0, sizeof(SplitCommState_t));
 
-    s_comm.status           = SPLIT_DISCONNECTED;
-    s_comm.rx_state         = RX_STATE_WAIT_SOF;
-    s_comm.rx_dma_read_pos  = 0;
-    s_comm.tx_busy          = false;
-    s_comm.last_rx_tick     = HAL_GetTick();
+    s_comm.status              = SPLIT_DISCONNECTED;
+    s_comm.rx_state            = RX_STATE_WAIT_SOF;
+    s_comm.rx_dma_read_pos     = 0;
+    s_comm.tx_busy             = false;
+    s_comm.last_rx_tick        = HAL_GetTick();
     s_comm.last_heartbeat_tick = HAL_GetTick();
+    s_comm.rx_state_timestamp  = HAL_GetTick();
+    s_comm.tx_drop_count       = 0;
+
+    s_comm.tx_queue.head  = 0;
+    s_comm.tx_queue.tail  = 0;
+    s_comm.tx_queue.count = 0;
 
     s_remote_head  = 0;
     s_remote_tail  = 0;
     s_remote_count = 0;
 
     HAL_UART_Receive_DMA(&huart1, s_comm.rx_dma_buf, SPLIT_RX_BUFFER_SIZE);
-
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 }
 
@@ -2057,20 +2353,24 @@ void SplitComm_Process(void)
 {
 
     uint16_t write_pos = _DMA_GetRxWritePos();
-
     while (s_comm.rx_dma_read_pos != write_pos) {
         uint8_t byte = s_comm.rx_dma_buf[s_comm.rx_dma_read_pos];
         s_comm.rx_dma_read_pos =
-            (s_comm.rx_dma_read_pos + 1) % SPLIT_RX_BUFFER_SIZE;
-
+            (s_comm.rx_dma_read_pos + 1U) % SPLIT_RX_BUFFER_SIZE;
         _ProcessRxByte(byte);
     }
 
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_MASTER)
-    _MasterHeartbeat();
-#endif
+    _CheckRxParseTimeout();
+
+    if (IS_MASTER()) {
+        _MasterHeartbeat();
+    }
 
     _CheckTimeout();
+
+    _UpdateStatusPattern();
+
+    _TxTryDrainQueue();
 }
 
 bool SplitComm_SendKeyEvent(uint8_t key_index, uint8_t state)
@@ -2078,17 +2378,15 @@ bool SplitComm_SendKeyEvent(uint8_t key_index, uint8_t state)
     SplitKeyEventPayload_t payload;
     payload.key_index = key_index;
     payload.state     = state;
-    payload.reserved  = 0;
-
-    return _SendPacket(SPLIT_PKT_KEY_EVENT,
-                       (const uint8_t *)&payload, sizeof(payload));
+    payload.reserved  = 0U;
+    return _BuildAndQueuePacket(SPLIT_PKT_KEY_EVENT,
+                                (const uint8_t *)&payload, sizeof(payload));
 }
 
 bool SplitComm_SendKeyState(const uint8_t *row_state, uint8_t num_rows)
 {
     if (num_rows > SPLIT_MAX_PAYLOAD) return false;
-
-    return _SendPacket(SPLIT_PKT_KEY_STATE, row_state, num_rows);
+    return _BuildAndQueuePacket(SPLIT_PKT_KEY_STATE, row_state, num_rows);
 }
 
 SplitConnStatus_t SplitComm_GetStatus(void)
@@ -2098,27 +2396,30 @@ SplitConnStatus_t SplitComm_GetStatus(void)
 
 bool SplitComm_GetRemoteEvent(KeyEvent_t *event)
 {
-    if (event == NULL || s_remote_count == 0) return false;
+    if (event == NULL || s_remote_count == 0U) return false;
 
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
-
     *event = s_remote_events[s_remote_head];
-    s_remote_head = (s_remote_head + 1) % REMOTE_EVENT_QUEUE_SIZE;
+    s_remote_head = (s_remote_head + 1U) % REMOTE_EVENT_QUEUE_SIZE;
     s_remote_count--;
-
     __set_PRIMASK(primask);
     return true;
 }
 
 bool SplitComm_HasRemoteEvent(void)
 {
-    return (s_remote_count > 0);
+    return (s_remote_count > 0U);
 }
 
 void SplitComm_TxCompleteCallback(void)
 {
     s_comm.tx_busy = false;
+    uint8_t data[SPLIT_MAX_PACKET_SIZE];
+    uint8_t len = 0U;
+    if (_TxQueue_Dequeue(data, &len)) {
+        _TxStartFromBuf(data, len);
+    }
 }
 
 const SplitCommState_t* SplitComm_GetState(void)
@@ -2126,94 +2427,139 @@ const SplitCommState_t* SplitComm_GetState(void)
     return &s_comm;
 }
 
-static bool _SendPacket(uint8_t type, const uint8_t *payload, uint8_t len)
+static bool _BuildAndQueuePacket(uint8_t type,
+                                 const uint8_t *payload, uint8_t len)
 {
-    if (s_comm.tx_busy) return false;
     if (len > SPLIT_MAX_PAYLOAD) return false;
 
-    uint8_t idx = 0;
+    uint8_t pkt[SPLIT_MAX_PACKET_SIZE];
+    uint8_t idx = 0U;
 
-    s_comm.tx_buf[idx++] = SPLIT_SOF;
-    s_comm.tx_buf[idx++] = type;
-    s_comm.tx_buf[idx++] = len;
-
-    if (len > 0 && payload != NULL) {
-        memcpy(&s_comm.tx_buf[idx], payload, len);
+    pkt[idx++] = SPLIT_SOF;
+    pkt[idx++] = type;
+    pkt[idx++] = len;
+    if (len > 0U && payload != NULL) {
+        memcpy(&pkt[idx], payload, len);
         idx += len;
     }
+    uint16_t crc = CRC16_Calculate(&pkt[1], 2U + len);
+    pkt[idx++] = (uint8_t)(crc & 0xFFU);
+    pkt[idx++] = (uint8_t)((crc >> 8U) & 0xFFU);
 
-    uint16_t crc = CRC16_Calculate(&s_comm.tx_buf[1], 2 + len);
-    s_comm.tx_buf[idx++] = (uint8_t)(crc & 0xFF);
-    s_comm.tx_buf[idx++] = (uint8_t)((crc >> 8) & 0xFF);
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
 
+    bool sent = false;
+    if (!s_comm.tx_busy) {
+        sent = _TxStartFromBuf(pkt, idx);
+    }
+    if (!sent) {
+        if (!_TxQueue_Enqueue(pkt, idx)) {
+            s_comm.tx_drop_count++;
+            __set_PRIMASK(primask);
+            return false;
+        }
+    }
+
+    __set_PRIMASK(primask);
+    s_comm.tx_packet_count++;
+    return true;
+}
+
+static bool _TxStartFromBuf(const uint8_t *data, uint8_t len)
+{
+    if (s_comm.tx_busy) return false;
+    memcpy(s_comm.tx_buf, data, len);
     s_comm.tx_busy = true;
-    if (HAL_UART_Transmit_DMA(&huart1, s_comm.tx_buf, idx) != HAL_OK) {
+    if (HAL_UART_Transmit_DMA(&huart1, s_comm.tx_buf, len) != HAL_OK) {
         s_comm.tx_busy = false;
         return false;
     }
-
-    s_comm.tx_packet_count++;
     return true;
+}
+
+static bool _TxQueue_Enqueue(const uint8_t *data, uint8_t len)
+{
+    SplitTxQueue_t *q = &s_comm.tx_queue;
+    if (q->count >= SPLIT_TX_QUEUE_SIZE) return false;
+    memcpy(q->entries[q->tail].data, data, len);
+    q->entries[q->tail].length = len;
+    q->tail = (q->tail + 1U) % SPLIT_TX_QUEUE_SIZE;
+    q->count++;
+    return true;
+}
+
+static bool _TxQueue_Dequeue(uint8_t *data, uint8_t *len)
+{
+    SplitTxQueue_t *q = &s_comm.tx_queue;
+    if (q->count == 0U) return false;
+    memcpy(data, q->entries[q->head].data, q->entries[q->head].length);
+    *len = q->entries[q->head].length;
+    q->head = (q->head + 1U) % SPLIT_TX_QUEUE_SIZE;
+    q->count--;
+    return true;
+}
+
+static void _TxTryDrainQueue(void)
+{
+    if (s_comm.tx_busy || s_comm.tx_queue.count == 0U) return;
+    uint8_t data[SPLIT_MAX_PACKET_SIZE];
+    uint8_t len = 0U;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    if (!s_comm.tx_busy && _TxQueue_Dequeue(data, &len)) {
+        _TxStartFromBuf(data, len);
+    }
+    __set_PRIMASK(primask);
 }
 
 static void _ProcessRxByte(uint8_t byte)
 {
     switch (s_comm.rx_state) {
-
     case RX_STATE_WAIT_SOF:
         if (byte == SPLIT_SOF) {
-            s_comm.rx_state = RX_STATE_WAIT_TYPE;
+            s_comm.rx_state           = RX_STATE_WAIT_TYPE;
+            s_comm.rx_state_timestamp = HAL_GetTick();
         }
         break;
-
     case RX_STATE_WAIT_TYPE:
         s_comm.rx_packet.type = byte;
-        s_comm.rx_state = RX_STATE_WAIT_LEN;
+        s_comm.rx_state       = RX_STATE_WAIT_LEN;
         break;
-
     case RX_STATE_WAIT_LEN:
         s_comm.rx_packet.length = byte;
-        s_comm.rx_payload_idx = 0;
-
+        s_comm.rx_payload_idx   = 0U;
         if (byte > SPLIT_MAX_PAYLOAD) {
-
             s_comm.rx_error_count++;
             s_comm.rx_state = RX_STATE_WAIT_SOF;
-        } else if (byte == 0) {
-
+        } else if (byte == 0U) {
             s_comm.rx_state = RX_STATE_WAIT_CRC_L;
         } else {
             s_comm.rx_state = RX_STATE_WAIT_PAYLOAD;
         }
         break;
-
     case RX_STATE_WAIT_PAYLOAD:
         s_comm.rx_packet.payload[s_comm.rx_payload_idx++] = byte;
         if (s_comm.rx_payload_idx >= s_comm.rx_packet.length) {
             s_comm.rx_state = RX_STATE_WAIT_CRC_L;
         }
         break;
-
     case RX_STATE_WAIT_CRC_L:
         s_comm.rx_packet.crc = byte;
-        s_comm.rx_state = RX_STATE_WAIT_CRC_H;
+        s_comm.rx_state      = RX_STATE_WAIT_CRC_H;
         break;
-
     case RX_STATE_WAIT_CRC_H:
-        s_comm.rx_packet.crc |= ((uint16_t)byte << 8);
-
+        s_comm.rx_packet.crc |= ((uint16_t)byte << 8U);
         {
-            uint8_t crc_buf[2 + SPLIT_MAX_PAYLOAD];
+            uint8_t crc_buf[2U + SPLIT_MAX_PAYLOAD];
             crc_buf[0] = s_comm.rx_packet.type;
             crc_buf[1] = s_comm.rx_packet.length;
-            if (s_comm.rx_packet.length > 0) {
+            if (s_comm.rx_packet.length > 0U) {
                 memcpy(&crc_buf[2], s_comm.rx_packet.payload,
                        s_comm.rx_packet.length);
             }
-
             uint16_t calc_crc = CRC16_Calculate(crc_buf,
-                                    2 + s_comm.rx_packet.length);
-
+                                    2U + s_comm.rx_packet.length);
             if (calc_crc == s_comm.rx_packet.crc) {
                 _HandlePacket(&s_comm.rx_packet);
                 s_comm.rx_packet_count++;
@@ -2221,49 +2567,43 @@ static void _ProcessRxByte(uint8_t byte)
                 s_comm.rx_error_count++;
             }
         }
-
         s_comm.rx_state = RX_STATE_WAIT_SOF;
         break;
-
     default:
         s_comm.rx_state = RX_STATE_WAIT_SOF;
         break;
+    }
+}
+
+static void _CheckRxParseTimeout(void)
+{
+    if (s_comm.rx_state != RX_STATE_WAIT_SOF) {
+        if ((HAL_GetTick() - s_comm.rx_state_timestamp)
+                >= SPLIT_RX_PARSE_TIMEOUT_MS) {
+            s_comm.rx_state = RX_STATE_WAIT_SOF;
+            s_comm.rx_error_count++;
+        }
     }
 }
 
 static void _HandlePacket(const SplitPacket_t *pkt)
 {
     s_comm.last_rx_tick = HAL_GetTick();
-
     if (s_comm.status == SPLIT_DISCONNECTED) {
         s_comm.status = SPLIT_CONNECTED;
     }
-
     switch (pkt->type) {
-    case SPLIT_PKT_KEY_EVENT:
-        _HandleKeyEvent(pkt);
-        break;
-
-    case SPLIT_PKT_KEY_STATE:
-        _HandleKeyState(pkt);
-        break;
-
-    case SPLIT_PKT_PING:
-        _HandlePing();
-        break;
-
-    case SPLIT_PKT_PONG:
-        _HandlePong();
-        break;
-
-    default:
-        break;
+    case SPLIT_PKT_KEY_EVENT: _HandleKeyEvent(pkt); break;
+    case SPLIT_PKT_KEY_STATE: _HandleKeyState(pkt); break;
+    case SPLIT_PKT_PING:      _HandlePing();         break;
+    case SPLIT_PKT_PONG:      _HandlePong();         break;
+    default:                                          break;
     }
 }
 
 static void _HandleKeyEvent(const SplitPacket_t *pkt)
 {
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_MASTER)
+    if (!IS_MASTER()) return;
     if (pkt->length < sizeof(SplitKeyEventPayload_t)) return;
 
     const SplitKeyEventPayload_t *kep =
@@ -2275,97 +2615,88 @@ static void _HandleKeyEvent(const SplitPacket_t *pkt)
     event.col       = kep->key_index % MATRIX_COLS;
     event.state     = kep->state ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
     event.timestamp = HAL_GetTick();
-
     _PushRemoteEvent(&event);
-#else
-    (void)pkt;
-#endif
 }
 
 static void _HandleKeyState(const SplitPacket_t *pkt)
 {
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_MASTER)
+    if (!IS_MASTER()) return;
     if (pkt->length < MATRIX_ROWS) return;
 
     static uint8_t s_prev_remote_state[MATRIX_ROWS] = {0};
 
     for (uint8_t row = 0; row < MATRIX_ROWS && row < pkt->length; row++) {
         uint8_t changed = s_prev_remote_state[row] ^ pkt->payload[row];
-
         for (uint8_t col = 0; col < MATRIX_COLS; col++) {
-            if (changed & (1 << col)) {
-                bool pressed = (pkt->payload[row] >> col) & 0x01;
-
+            if (changed & (1U << col)) {
+                bool pressed = (pkt->payload[row] >> col) & 0x01U;
                 KeyEvent_t event;
                 event.key_index = row * MATRIX_COLS + col;
                 event.row       = row;
                 event.col       = col;
-                event.state     = pressed ? KEY_STATE_PRESSED
-                                          : KEY_STATE_RELEASED;
+                event.state     = pressed ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
                 event.timestamp = HAL_GetTick();
-
                 _PushRemoteEvent(&event);
             }
         }
-
         s_prev_remote_state[row] = pkt->payload[row];
     }
-#else
-    (void)pkt;
-#endif
 }
 
 static void _HandlePing(void)
 {
-#if (KEYBOARD_ROLE == KEYBOARD_ROLE_SLAVE)
-    _SendPacket(SPLIT_PKT_PONG, NULL, 0);
-#endif
+    if (!IS_SLAVE()) return;
+    _BuildAndQueuePacket(SPLIT_PKT_PONG, NULL, 0U);
 }
 
 static void _HandlePong(void)
 {
+    if (!IS_MASTER()) return;
     s_comm.status = SPLIT_CONNECTED;
 }
 
 static void _PushRemoteEvent(const KeyEvent_t *event)
 {
     if (s_remote_count >= REMOTE_EVENT_QUEUE_SIZE) {
-
-        s_remote_head = (s_remote_head + 1) % REMOTE_EVENT_QUEUE_SIZE;
+        s_remote_head = (s_remote_head + 1U) % REMOTE_EVENT_QUEUE_SIZE;
         s_remote_count--;
     }
-
     s_remote_events[s_remote_tail] = *event;
-    s_remote_tail = (s_remote_tail + 1) % REMOTE_EVENT_QUEUE_SIZE;
+    s_remote_tail = (s_remote_tail + 1U) % REMOTE_EVENT_QUEUE_SIZE;
     s_remote_count++;
 }
 
 static void _MasterHeartbeat(void)
 {
     uint32_t now = HAL_GetTick();
-
     if ((now - s_comm.last_heartbeat_tick) >= SPLIT_HEARTBEAT_MS) {
         s_comm.last_heartbeat_tick = now;
-        _SendPacket(SPLIT_PKT_PING, NULL, 0);
+        _BuildAndQueuePacket(SPLIT_PKT_PING, NULL, 0U);
     }
 }
 
 static void _CheckTimeout(void)
 {
     if (s_comm.status == SPLIT_CONNECTED) {
-        uint32_t elapsed = HAL_GetTick() - s_comm.last_rx_tick;
-
-        if (elapsed > SPLIT_TIMEOUT_MS) {
+        if ((HAL_GetTick() - s_comm.last_rx_tick) > SPLIT_TIMEOUT_MS) {
             s_comm.status = SPLIT_DISCONNECTED;
         }
     }
 }
 
+static void _UpdateStatusPattern(void)
+{
+    if (s_comm.status == SPLIT_CONNECTED) {
+        LedManager_SetStatusPattern(LED_STATUS_OFF);
+    } else {
+        LedManager_SetStatusPattern(LED_STATUS_BLINK_2HZ);
+    }
+}
+
 static uint16_t _DMA_GetRxWritePos(void)
 {
-
     uint16_t ndtr = __HAL_DMA_GET_COUNTER(huart1.hdmarx);
-    return (SPLIT_RX_BUFFER_SIZE - ndtr) % SPLIT_RX_BUFFER_SIZE;
+    return (uint16_t)((SPLIT_RX_BUFFER_SIZE - ndtr) % SPLIT_RX_BUFFER_SIZE);
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
@@ -2378,24 +2709,20 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 void SplitComm_UART_IdleCallback(void)
 {
 
-    __HAL_UART_CLEAR_IDLEFLAG(&huart1);
-
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1) {
-
         __HAL_UART_CLEAR_OREFLAG(huart);
         __HAL_UART_CLEAR_NEFLAG(huart);
         __HAL_UART_CLEAR_FEFLAG(huart);
 
-        s_comm.rx_state = RX_STATE_WAIT_SOF;
-        s_comm.rx_dma_read_pos = 0;
+        s_comm.rx_state        = RX_STATE_WAIT_SOF;
+        s_comm.rx_dma_read_pos = 0U;
 
         HAL_UART_DMAStop(huart);
         HAL_UART_Receive_DMA(huart, s_comm.rx_dma_buf, SPLIT_RX_BUFFER_SIZE);
-
         s_comm.rx_error_count++;
     }
 }
@@ -2499,72 +2826,51 @@ void HAL_ResumeTick(void)
 ```c
 #include "main.h"
 #include "stm32f4xx_it.h"
+#include "split_comm.h"
 
-extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
-extern TIM_HandleTypeDef htim2;
-extern DMA_HandleTypeDef hdma_usart1_rx;
-extern DMA_HandleTypeDef hdma_usart1_tx;
+extern PCD_HandleTypeDef  hpcd_USB_OTG_FS;
+extern TIM_HandleTypeDef  htim2;
+extern DMA_HandleTypeDef  hdma_usart1_rx;
+extern DMA_HandleTypeDef  hdma_usart1_tx;
 extern UART_HandleTypeDef huart1;
-extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef  htim5;
 
 void NMI_Handler(void)
 {
-
-   while (1)
-  {
-  }
-
+    while (1) { }
 }
 
 void HardFault_Handler(void)
 {
 
-  while (1)
-  {
-
-  }
+    while (1) { }
 }
 
 void MemManage_Handler(void)
 {
-
-  while (1)
-  {
-
-  }
+    while (1) { }
 }
 
 void BusFault_Handler(void)
 {
-
-  while (1)
-  {
-
-  }
+    while (1) { }
 }
 
 void UsageFault_Handler(void)
 {
-
-  while (1)
-  {
-
-  }
+    while (1) { }
 }
 
 void SVC_Handler(void)
 {
-
 }
 
 void DebugMon_Handler(void)
 {
-
 }
 
 void PendSV_Handler(void)
 {
-
 }
 
 void SysTick_Handler(void)
@@ -2574,44 +2880,39 @@ void SysTick_Handler(void)
 
 void TIM2_IRQHandler(void)
 {
-
-  HAL_TIM_IRQHandler(&htim2);
-
+    HAL_TIM_IRQHandler(&htim2);
 }
 
 void USART1_IRQHandler(void)
 {
 
-  HAL_UART_IRQHandler(&huart1);
+    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) &&
+        __HAL_UART_GET_IT_SOURCE(&huart1, UART_IT_IDLE))
+    {
+        SplitComm_UART_IdleCallback();
+    }
 
+    HAL_UART_IRQHandler(&huart1);
 }
 
 void TIM5_IRQHandler(void)
 {
-
-  HAL_TIM_IRQHandler(&htim5);
-
+    HAL_TIM_IRQHandler(&htim5);
 }
 
 void DMA2_Stream2_IRQHandler(void)
 {
-
-  HAL_DMA_IRQHandler(&hdma_usart1_rx);
-
+    HAL_DMA_IRQHandler(&hdma_usart1_rx);
 }
 
 void OTG_FS_IRQHandler(void)
 {
-
-  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-
+    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 }
 
 void DMA2_Stream7_IRQHandler(void)
 {
-
-  HAL_DMA_IRQHandler(&hdma_usart1_tx);
-
+    HAL_DMA_IRQHandler(&hdma_usart1_tx);
 }
 ```
 
@@ -3704,49 +4005,80 @@ static uint8_t *USBD_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t
 #include <string.h>
 
 static const uint8_t HID_KB_ReportDesc[] = {
+
     0x05, 0x01,
+
     0x09, 0x06,
+
     0xA1, 0x01,
+
     0x85, HID_REPORT_ID_KEYBOARD,
 
     0x05, 0x07,
+
     0x19, 0xE0,
+
     0x29, 0xE7,
+
     0x15, 0x00,
+
     0x25, 0x01,
+
     0x75, 0x01,
+
     0x95, 0x08,
+
     0x81, 0x02,
 
     0x95, 0x01,
+
     0x75, 0x08,
+
     0x81, 0x03,
 
     0x05, 0x08,
+
     0x19, 0x01,
+
     0x29, 0x05,
+
     0x95, 0x05,
+
     0x75, 0x01,
+
     0x91, 0x02,
+
     0x95, 0x01,
+
     0x75, 0x03,
+
     0x91, 0x03,
 
     0x05, 0x07,
+
     0x19, 0x00,
+
     0x29, 0xE7,
+
     0x15, 0x00,
+
     0x26, 0xE7, 0x00,
+
     0x95, 0x06,
+
     0x75, 0x08,
+
     0x81, 0x00,
 
     0xC0,
 };
 
 static const uint8_t HID_Raw_ReportDesc[] = {
+
     0x06, 0x60, 0xFF,
+
     0x09, 0x61,
+
     0xA1, 0x01,
 
     0x09, 0x62,
@@ -3843,9 +4175,9 @@ static const uint8_t USBD_HID_CfgDesc[HID_CUSTOM_CONFIG_DESC_SIZE] = {
 
 static USBD_HID_Custom_HandleTypeDef s_hid_handle;
 
-static uint8_t  s_raw_rx_buf[HID_RAW_EP_SIZE];
-static uint8_t  s_raw_data_buf[HID_RAW_EP_SIZE];
-static bool     s_raw_data_available = false;
+static uint8_t s_raw_rx_buf[HID_RAW_EP_SIZE];
+static uint8_t s_raw_data_buf[HID_RAW_EP_SIZE];
+static bool    s_raw_data_available = false;
 
 static uint8_t USBD_HID_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_HID_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
@@ -3877,7 +4209,8 @@ static uint8_t USBD_HID_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     (void)cfgidx;
 
     memset(&s_hid_handle, 0, sizeof(USBD_HID_Custom_HandleTypeDef));
-    s_hid_handle.protocol  = 1U;
+
+    s_hid_handle.protocol  = HID_PROTOCOL_REPORT;
     s_hid_handle.idle_rate = 0U;
     pdev->pClassData = &s_hid_handle;
 
@@ -3916,7 +4249,8 @@ static uint8_t USBD_HID_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     return USBD_OK;
 }
 
-static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
+static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev,
+                               USBD_SetupReqTypedef *req)
 {
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
@@ -3934,11 +4268,12 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *re
         switch (req->bRequest) {
 
         case HID_REQ_SET_PROTOCOL:
-            hhid->protocol = (uint8_t)req->wValue;
+
+            hhid->protocol = (uint8_t)(req->wValue & 0x01U);
             break;
 
         case HID_REQ_GET_PROTOCOL:
-            USBD_CtlSendData(pdev, (uint8_t *)&hhid->protocol, 1U);
+            USBD_CtlSendData(pdev, &hhid->protocol, 1U);
             break;
 
         case HID_REQ_SET_IDLE:
@@ -3946,7 +4281,7 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *re
             break;
 
         case HID_REQ_GET_IDLE:
-            USBD_CtlSendData(pdev, (uint8_t *)&hhid->idle_rate, 1U);
+            USBD_CtlSendData(pdev, &hhid->idle_rate, 1U);
             break;
 
         default:
@@ -3969,10 +4304,9 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *re
             break;
 
         case USB_REQ_GET_DESCRIPTOR:
+            if ((req->wValue >> 8) == HID_REPORT_DESC) {
 
-            if (req->wValue >> 8 == HID_REPORT_DESC) {
-
-                if ((req->wIndex & 0xFF) == HID_KB_INTERFACE_NUM) {
+                if ((req->wIndex & 0xFFU) == HID_KB_INTERFACE_NUM) {
                     pbuf = (uint8_t *)HID_KB_ReportDesc;
                     len  = sizeof(HID_KB_ReportDesc);
                 } else {
@@ -3981,17 +4315,17 @@ static uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *re
                 }
                 len = MIN(len, req->wLength);
                 USBD_CtlSendData(pdev, pbuf, len);
-            }
 
-            else if (req->wValue >> 8 == HID_DESCRIPTOR_TYPE) {
+            } else if ((req->wValue >> 8) == HID_DESCRIPTOR_TYPE) {
 
-                if ((req->wIndex & 0xFF) == HID_KB_INTERFACE_NUM) {
+                if ((req->wIndex & 0xFFU) == HID_KB_INTERFACE_NUM) {
                     pbuf = (uint8_t *)USBD_HID_CfgDesc + 18U;
                 } else {
                     pbuf = (uint8_t *)USBD_HID_CfgDesc + 43U;
                 }
                 len = MIN(9U, req->wLength);
                 USBD_CtlSendData(pdev, pbuf, len);
+
             } else {
                 USBD_CtlError(pdev, req);
                 ret = USBD_FAIL;
@@ -4040,9 +4374,7 @@ static uint8_t USBD_HID_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
     if (epnum == (HID_KB_EP_IN_ADDR & 0x0FU)) {
         hhid->kb_state = HID_IDLE;
-    }
-
-    else if (epnum == (HID_RAW_EP_IN_ADDR & 0x0FU)) {
+    } else if (epnum == (HID_RAW_EP_IN_ADDR & 0x0FU)) {
         hhid->raw_state = HID_IDLE;
     }
 
@@ -4051,9 +4383,7 @@ static uint8_t USBD_HID_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 static uint8_t USBD_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
-
-    if (epnum == HID_RAW_EP_OUT_ADDR) {
-
+    if (epnum == (HID_RAW_EP_OUT_ADDR & 0x0FU)) {
         memcpy(s_raw_data_buf, s_raw_rx_buf, HID_RAW_EP_SIZE);
         s_raw_data_available = true;
 
@@ -4094,13 +4424,23 @@ USBD_StatusTypeDef USBD_HID_SendKeyboardReport(USBD_HandleTypeDef *pdev,
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
 
-    if (hhid == NULL) return USBD_FAIL;
+    if (hhid == NULL)                          return USBD_FAIL;
     if (pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
-    if (hhid->kb_state == HID_BUSY) return USBD_BUSY;
+    if (hhid->kb_state == HID_BUSY)            return USBD_BUSY;
 
     hhid->kb_state = HID_BUSY;
-    USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
-                     (uint8_t *)report, sizeof(HID_KeyboardReport_t));
+
+    if (hhid->protocol == HID_PROTOCOL_BOOT) {
+
+        USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
+                         &report->modifiers,
+                         HID_KB_EP_BOOT_SIZE);
+    } else {
+
+        USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
+                         (uint8_t *)report,
+                         sizeof(HID_KeyboardReport_t));
+    }
 
     return USBD_OK;
 }
@@ -4111,9 +4451,9 @@ USBD_StatusTypeDef USBD_HID_SendNKROReport(USBD_HandleTypeDef *pdev,
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
 
-    if (hhid == NULL) return USBD_FAIL;
+    if (hhid == NULL)                          return USBD_FAIL;
     if (pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
-    if (hhid->kb_state == HID_BUSY) return USBD_BUSY;
+    if (hhid->kb_state == HID_BUSY)            return USBD_BUSY;
 
     hhid->kb_state = HID_BUSY;
     USBD_LL_Transmit(pdev, HID_KB_EP_IN_ADDR,
@@ -4128,9 +4468,9 @@ USBD_StatusTypeDef USBD_HID_SendRawReport(USBD_HandleTypeDef *pdev,
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
 
-    if (hhid == NULL) return USBD_FAIL;
+    if (hhid == NULL)                          return USBD_FAIL;
     if (pdev->dev_state != USBD_STATE_CONFIGURED) return USBD_FAIL;
-    if (hhid->raw_state == HID_BUSY) return USBD_BUSY;
+    if (hhid->raw_state == HID_BUSY)           return USBD_BUSY;
 
     hhid->raw_state = HID_BUSY;
     USBD_LL_Transmit(pdev, HID_RAW_EP_IN_ADDR, data, HID_RAW_EP_SIZE);
@@ -4158,7 +4498,7 @@ bool USBD_HID_KeyboardReady(USBD_HandleTypeDef *pdev)
     USBD_HID_Custom_HandleTypeDef *hhid =
         (USBD_HID_Custom_HandleTypeDef *)pdev->pClassData;
 
-    if (hhid == NULL) return false;
+    if (hhid == NULL)                          return false;
     if (pdev->dev_state != USBD_STATE_CONFIGURED) return false;
 
     return (hhid->kb_state == HID_IDLE);
@@ -4189,6 +4529,9 @@ extern "C" {
 #define HID_REPORT_DESC         0x22U
 #define HID_PHYSICAL_DESC       0x23U
 
+#define HID_PROTOCOL_BOOT       0x00U
+#define HID_PROTOCOL_REPORT     0x01U
+
 #ifndef USB_REQ_TYPE_STANDARD
 #define USB_REQ_TYPE_STANDARD   0x00U
 #endif
@@ -4208,6 +4551,7 @@ extern "C" {
 
 #define HID_KB_EP_IN_ADDR               0x81U
 #define HID_KB_EP_IN_SIZE               9U
+#define HID_KB_EP_BOOT_SIZE             8U
 
 #define HID_RAW_EP_IN_ADDR              0x82U
 #define HID_RAW_EP_OUT_ADDR             0x02U
@@ -4249,8 +4593,10 @@ typedef struct {
     HID_StateTypeDef kb_state;
     HID_StateTypeDef raw_state;
     uint8_t          raw_rx_buf[HID_RAW_EP_SIZE];
-    uint32_t         protocol;
-    uint32_t         idle_rate;
+
+    uint8_t          protocol;
+
+    uint8_t          idle_rate;
     bool             kb_report_pending;
 } USBD_HID_Custom_HandleTypeDef;
 
@@ -4763,8 +5109,5 @@ void USBD_static_free(void *p);
 ```
 
 ----------------------------------------
-📊 Tổng: 43 file, ~4528 dòng (đã loại bỏ comment)
+📊 Tổng: 45 file, ~4864 dòng (đã loại bỏ comment)
 ----------------------------------------
-
-## Yêu cầu
-cột col3 không hoạt động, vấn đề có thể là gì? hãy phân tích kỹ nguyên nhân trước

@@ -7,23 +7,48 @@ extern "C" {
 
 #include "stm32f4xx_hal.h"
 
-/*============================================================
- * KEYBOARD IDENTITY
- *============================================================*/
+/* ── Identity ─────────────────────────────────────────────────── */
+
 #define KEYBOARD_NAME           "Dactyl Ergonomic Keyboard"
 #define KEYBOARD_VERSION        0x0100
 #define FIRMWARE_VERSION        0x0100
 
-/*============================================================
- * KEYBOARD ROLE CONFIGURATION
- *============================================================*/
-#define KEYBOARD_ROLE_MASTER    0
-#define KEYBOARD_ROLE_SLAVE     1
-#define KEYBOARD_ROLE           KEYBOARD_ROLE_MASTER
+/* ── Role constants ───────────────────────────────────────────── */
 
-/*============================================================
- * MATRIX DIMENSIONS
- *============================================================*/
+#define KEYBOARD_ROLE_MASTER    0U
+#define KEYBOARD_ROLE_SLAVE     1U
+#define KEYBOARD_ROLE_UNKNOWN   0xFFU
+
+/*
+ * Runtime role detection.
+ *
+ * g_keyboard_role is set once during startup by Role_Detect()
+ * based on USB VBUS presence. After Role_Detect() returns,
+ * this variable is read-only for the rest of the firmware.
+ *
+ * Do NOT use this in ISR context without understanding that it
+ * is written only once before any ISR is enabled.
+ *
+ * Fallback: if VBUS detection is inconclusive, the role defaults
+ * to KEYBOARD_ROLE_FALLBACK defined below.
+ */
+extern uint8_t g_keyboard_role;
+
+/*
+ * Compile-time fallback role used when VBUS detection fails
+ * (e.g., USB OTG PHY not responding, clock issue).
+ * Change this to KEYBOARD_ROLE_SLAVE to make the other half
+ * the default fallback.
+ */
+#define KEYBOARD_ROLE_FALLBACK  KEYBOARD_ROLE_MASTER
+
+/* ── Convenience macros (runtime checks) ─────────────────────── */
+
+#define IS_MASTER()     (g_keyboard_role == KEYBOARD_ROLE_MASTER)
+#define IS_SLAVE()      (g_keyboard_role == KEYBOARD_ROLE_SLAVE)
+
+/* ── Matrix dimensions ────────────────────────────────────────── */
+
 #define MATRIX_ROWS             4
 #define MATRIX_COLS             4
 #define MATRIX_SIZE             (MATRIX_ROWS * MATRIX_COLS)
@@ -31,46 +56,32 @@ extern "C" {
 #define KEYS_PER_HALF           (MATRIX_ROWS * MATRIX_COLS)
 #define TOTAL_KEYS              (KEYS_PER_HALF * 2)
 
-/*============================================================
- * 🔧 PIN CONFIGURATION - EDIT HERE TO CHANGE PINS
- *============================================================*/
+/* ── Row GPIO ─────────────────────────────────────────────────── */
 
-/* ----- ROW PINS (Output, directly on GPIO port) ----- */
 #define ROW_GPIO_PORT           GPIOA
 
-/* Định nghĩa từng pin ROW - Chỉ cần sửa ở đây */
 #define ROW0_PIN                GPIO_PIN_0
 #define ROW1_PIN                GPIO_PIN_1
 #define ROW2_PIN                GPIO_PIN_2
 #define ROW3_PIN                GPIO_PIN_3
 
-/* Mảng ROW pins để sử dụng trong code */
 #define ROW_PINS_ARRAY          { ROW0_PIN, ROW1_PIN, ROW2_PIN, ROW3_PIN }
-
-/* Mask tất cả ROW pins để init cùng lúc */
 #define ROW_ALL_PINS            (ROW0_PIN | ROW1_PIN | ROW2_PIN | ROW3_PIN)
 
+/* ── Column GPIO ──────────────────────────────────────────────── */
 
-/* ----- COLUMN PINS (Input với Pull-up) ----- */
 #define COL_GPIO_PORT           GPIOB
 
-/* Định nghĩa từng pin COL - Chỉ cần sửa ở đây */
 #define COL0_PIN                GPIO_PIN_0
 #define COL1_PIN                GPIO_PIN_1
 #define COL2_PIN                GPIO_PIN_6
 #define COL3_PIN                GPIO_PIN_5
 
-/* Mảng COL pins để sử dụng trong code */
 #define COL_PINS_ARRAY          { COL0_PIN, COL1_PIN, COL2_PIN, COL3_PIN }
-
-/* Mask tất cả COL pins để init và đọc cùng lúc */
 #define COL_ALL_PINS            (COL0_PIN | COL1_PIN | COL2_PIN | COL3_PIN)
 
-/* Offset của COL pins trong thanh ghi IDR (nếu không bắt đầu từ bit 0) */
-#define COL_PIN_OFFSET          0
+/* ── LED GPIO ─────────────────────────────────────────────────── */
 
-
-/* ----- LED PINS ----- */
 #define LED_STATUS_GPIO_PORT    GPIOC
 #define LED_STATUS_PIN          GPIO_PIN_13
 
@@ -80,49 +91,58 @@ extern "C" {
 
 #define LED_ALL_PINS            (LED_LAYER1_PIN | LED_LAYER2_PIN)
 
+/* ── Timing ───────────────────────────────────────────────────── */
 
-/*============================================================
- * TIMING CONFIGURATION
- *============================================================*/
 #define DEBOUNCE_TIME_MS        5
 #define MATRIX_SCAN_INTERVAL_MS 1
 #define ROW_SETTLE_US           2
 
-/*============================================================
- * LAYER CONFIGURATION
- *============================================================*/
+/* ── Layer system ─────────────────────────────────────────────── */
+
 #define MAX_LAYERS              16
 #define DEFAULT_LAYER           0
 
-/*============================================================
- * EVENT QUEUE
- *============================================================*/
+/* ── Event queue ──────────────────────────────────────────────── */
+
 #define KEY_EVENT_QUEUE_SIZE    32
 
-/*============================================================
- * SPLIT COMMUNICATION
- *============================================================*/
+/* ── Split communication ──────────────────────────────────────── */
+
 #define SPLIT_UART_BAUDRATE     1000000
 #define SPLIT_TX_BUFFER_SIZE    256
 #define SPLIT_RX_BUFFER_SIZE    512
 #define SPLIT_HEARTBEAT_MS      50
 #define SPLIT_TIMEOUT_MS        100
 
-/*============================================================
- * MACRO CONFIGURATION
- *============================================================*/
+/* ── Macro system (reserved) ──────────────────────────────────── */
+
 #define MAX_MACROS              32
 #define MAX_MACRO_STEPS         64
 
-/*============================================================
- * FLASH STORAGE
- *============================================================*/
+/* ── Flash keymap storage (reserved) ─────────────────────────── */
+
 #define KEYMAP_FLASH_ADDR       0x08020000
 #define KEYMAP_MAGIC_NUMBER     0xDACF1234
 #define KEYMAP_VERSION          1
+
+/* ── VBUS detection ───────────────────────────────────────────── */
+
+/*
+ * Milliseconds to wait after enabling USB OTG clock before
+ * reading the VBUS comparator. The OTG PHY needs time to power
+ * up its internal comparators.
+ */
+#define VBUS_DETECT_SETTLE_MS   10U
+
+/*
+ * Number of consecutive BSVLD readings required to confirm VBUS.
+ * Sampled every 1ms. Total detection time = SETTLE + SAMPLES ms.
+ * This prevents false detection from transient spikes.
+ */
+#define VBUS_DETECT_SAMPLES     3U
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __KEYBOARD_CONFIG_H */
+#endif
