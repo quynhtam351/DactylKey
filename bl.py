@@ -1000,7 +1000,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['finger_col_gap_0' + str(i) for i in range(ncols-1)] + ['finger_RIGHT']:
+        for vertex_group in ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
 
@@ -1016,12 +1016,12 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
     
-    for row in range(cornerrow):
+    for row in range(nrows-2):
         #Fill in between extended parts
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_' + str(ncols-2) + ', ' + 'finger_LEFT']:
+        for vertex_group in ['finger_col_gap_' + str(i) in range(ncols-1)] + ['finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1079,7 +1079,7 @@ def main():
     # Correct Left/Right
     bpy.ops.object.vertex_group_set_active(group="finger_col_gap_0")
     bpy.ops.object.vertex_group_select()
-    bpy.ops.object.vertex_group_set_active(group="finger_col_gap_' + str(ncols-2)")
+    bpy.ops.object.vertex_group_set_active(group="finger_col_gap_" + str(ncols-2))
     bpy.ops.object.vertex_group_select()
     bpy.ops.mesh.select_more()
     bpy.ops.object.vertex_group_set_active(group="finger_corner_TR")
@@ -1149,7 +1149,7 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
 
-    for column in range(lastcol):
+    for column in range(ncols-1):
         #Fill in between extended edges
         for vertex_group in ['finger_col_gap_' + str(column)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
@@ -1195,7 +1195,7 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
 
-    for column in range(lastcol):
+    for column in range(ncols-1):
         #Fill in between extended parts
         for vertex_group in ['finger_col_gap_' + str(column)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
@@ -1216,7 +1216,7 @@ def main():
         
 
     ### Left
-    for row in range(lastrow):
+    for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.object.vertex_group_set_active(group='switch - 0, ' + str(row))
@@ -1241,12 +1241,12 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
     
-    for row in range(cornerrow):
+    for row in range(nrows-2):
         #Fill in between extended parts
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_' + str(ncols-2) + ', ' + 'finger_RIGHT']:
+        for vertex_group in ['key_finger'] + ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1255,10 +1255,10 @@ def main():
     
     
     ### RIGHT
-    for row in range(lastrow):
+    for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.object.vertex_group_set_active(group='switch - ' + str(lastcol) + ', ' + str(row))
+        bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-1) + ', ' + str(row))
         bpy.ops.object.vertex_group_deselect()
         bpy.ops.object.vertex_group_set_active(group='finger_col_gap_' + str(ncols-2))
         bpy.ops.object.vertex_group_select()
@@ -1280,12 +1280,12 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
     
-    for row in range(cornerrow):
+    for row in range(nrows-2):
         #Fill in between extended parts
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_' + str(ncols-2) + ', ' + 'finger_LEFT']:
+        for vertex_group in ['key_finger'] + ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1341,7 +1341,7 @@ def main():
     
     
     
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', ' + str(lastrow))
+    #bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', ' + str(lastrow))
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='RAISE_1')
     bpy.ops.object.vertex_group_deselect()
@@ -1387,7 +1387,7 @@ def main():
     bpy.ops.object.mode_set(mode = 'EDIT')
     '''
     '''
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[0]) + ', ' + str(lastrow))
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[0]) + ', ' + str(nrows-1))
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='RAISE_1')
     bpy.ops.object.vertex_group_deselect()
@@ -1439,7 +1439,7 @@ def main():
     '''
     
     '''
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', 0')
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-3) + ', 0')
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='RAISE_1')
     bpy.ops.object.vertex_group_deselect()
@@ -1450,7 +1450,7 @@ def main():
     bpy.ops.object.vertex_group_set_active(group='TEMP_CORNER_SQUARE')
     bpy.ops.object.vertex_group_remove_from()
     bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', 0')
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-3) + ', 0')
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='TEMP')
     bpy.ops.object.vertex_group_deselect()
@@ -1460,14 +1460,14 @@ def main():
     bpy.ops.object.mode_set(mode = 'OBJECT')
     bpy.ops.object.modifier_add(type='SHRINKWRAP')
     bpy.context.object.modifiers["Shrinkwrap"].wrap_method = 'NEAREST_VERTEX'
-    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(stagger_cols[-1]) + ', 0']
+    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(ncols-3) + ', 0']
     bpy.context.object.modifiers["Shrinkwrap"].vertex_group = "TEMP_CORNER_SQUARE"
     bpy.context.object.modifiers["Shrinkwrap"].offset = 0.01
     bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
     bpy.ops.object.mode_set(mode = 'EDIT')
     
-    bpy.context.scene.cursor.location = bpy.data.objects["axis - " + str(stagger_cols[-1]) + ', 0'].location
-    bpy.context.scene.cursor.rotation_euler =  bpy.data.objects["axis - " + str(stagger_cols[-1]) + ', 0'].rotation_euler
+    bpy.context.scene.cursor.location = bpy.data.objects["axis - " + str(ncols-3) + ', 0'].location
+    bpy.context.scene.cursor.rotation_euler =  bpy.data.objects["axis - " + str(ncols-3) + ', 0'].rotation_euler
 
     
     bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -1523,7 +1523,7 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
 
-    for column in range(lastcol):
+    for column in range(ncols-1):
         #Fill in between extended edges
         for vertex_group in ['finger_col_gap_' + str(column)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
@@ -1614,7 +1614,7 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
 
-    for column in range(lastcol):
+    for column in range(ncols-1):
         #Fill in between extended parts
         for vertex_group in ['finger_col_gap_' + str(column)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
@@ -1631,13 +1631,13 @@ def main():
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', ' + str(cornerrow))
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
-        if column in [1, 2, 3]:
+        if column in range(stagger_cols[0] - 1, stagger_cols[-1] + 1:
             bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
         bpy.ops.mesh.select_all(action='DESELECT')
     
     
         ### Left
-    for row in range(lastrow):
+    for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.object.vertex_group_set_active(group='switch - 0, ' + str(row))
@@ -1667,12 +1667,12 @@ def main():
 
     #print(xyz)
     
-    for row in range(cornerrow):
+    for row in range(nrows-2):
         #Fill in between extended parts
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'RAISE_0', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_' + str(ncols-2) + ', ' + 'finger_RIGHT']:
+        for vertex_group in ['key_finger', 'RAISE_0'] + ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1681,10 +1681,10 @@ def main():
     
 
     ### RIGHT
-    for row in range(lastrow):
+    for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.object.vertex_group_set_active(group='switch - ' + str(lastcol) + ', ' + str(row))
+        bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-1) + ', ' + str(row))
         bpy.ops.object.vertex_group_deselect()
         bpy.ops.object.vertex_group_set_active(group='finger_col_gap_' + str(ncols-2))
         bpy.ops.object.vertex_group_select()
@@ -1708,12 +1708,12 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
     
-    for row in range(cornerrow):
+    for row in range(nrows-2):
         #Fill in between extended parts
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'RAISE_0', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_' + str(ncols-2) + ', ' + 'finger_LEFT']:
+        for vertex_group in ['key_finger', 'RAISE_0'] + ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -2534,7 +2534,7 @@ def main():
                 bpy.ops.object.vertex_group_deselect()
                 bpy.ops.object.vertex_group_set_active(group=build_edge[0])
             if build_edge[0]=="finger_BOTTOM" and ring_num>0:
-                bpy.ops.object.vertex_group_set_active(group="switch - " + str(stagger_cols[-1]) + ", " + str(lastrow))
+                bpy.ops.object.vertex_group_set_active(group="switch - " + str(stagger_cols[-1]) + ", " + str(nrows-1))
                 bpy.ops.object.vertex_group_deselect()
                 bpy.ops.object.vertex_group_set_active(group=build_edge[0])
             if build_edge[0]=="thumb_RIGHT":
@@ -2719,7 +2719,7 @@ def main():
     
     bpy.ops.object.vertex_group_set_active(group="finger_BOTTOM")
     bpy.ops.object.vertex_group_select()
-    bpy.ops.object.vertex_group_set_active(group="switch - " + str(stagger_cols[-1]) + ", " + str(lastrow))
+    bpy.ops.object.vertex_group_set_active(group="switch - " + str(stagger_cols[-1]) + ", " + str(nrows-1))
     bpy.ops.object.vertex_group_deselect()
     bpy.ops.mesh.offset_edges(geometry_mode='move', width=-5, angle=-1.5708, follow_face=False, edge_rail=False, caches_valid=False, angle_presets='90°')
     
@@ -2773,7 +2773,7 @@ def main():
                 bpy.ops.object.vertex_group_set_active(group=build_edge[0])
             
             if build_edge[0]=="finger_BOTTOM" and  ring_num>0:
-                bpy.ops.object.vertex_group_set_active(group="switch - " + str(stagger_cols[-1]) + ", " + str(lastrow))
+                bpy.ops.object.vertex_group_set_active(group="switch - " + str(stagger_cols[-1]) + ", " + str(nrows-1))
                 bpy.ops.object.vertex_group_deselect()
                 bpy.ops.object.vertex_group_set_active(group=build_edge[0])
                 #@print(xyz)
@@ -3940,7 +3940,7 @@ def main():
         for mesh_object in list(bpy.context.scene.objects):
             if 'body.' in mesh_object.name:
                 mesh_object.select_set(True)
-        with suppress_stdout(): pby.ops.object.delete()
+        with suppress_stdout(): bpy.ops.object.delete()
         bpy.data.objects['body_bottom'].name = 'bottom'
         bpy.ops.object.select_all(action='DESELECT')
         bpy.data.objects["cut_cube"].select_set(True)
@@ -4476,10 +4476,10 @@ def main():
 
         #              [location,                                       direction,                                      rotation] 
         magnet_data = [['axis - 0, 0',                                  'axis - 0, 0',                                  [0, radians(90), 0] ],
-                       ['axis - ' + str(stagger_cols[-1]) + ', 0',               'axis - ' + str(stagger_cols[-1]) + ', 0',               [radians(90), 0, 0] ],
-                       ['axis - ' + str(ncols-2) + ', ' + str(cornerrow), 'axis - ' + str(ncols-2) + ', ' + str(cornerrow), [radians(-90), 0, 0]],
+                       ['axis - ' + str(ncols-3) + ', 0',               'axis - ' + str(ncols-3) + ', 0',               [radians(90), 0, 0] ],
+                       ['axis - ' + str(ncols-2) + ', ' + str(nrows-2), 'axis - ' + str(ncols-2) + ', ' + str(nrows-2), [radians(-90), 0, 0]],
                        ['axis - thumb - ' + str(len(th_layout) - 1),                             'axis - thumb - ' + str(len(th_layout) - 1),                             [radians(-90), 0, 0]],
-                       ['axis - 0, ' + str(cornerrow),                    'axis - 0, ' + str(cornerrow),                    [0, radians(90), 0] ]]
+                       ['axis - 0, ' + str(nrows-2),                    'axis - 0, ' + str(nrows-2),                    [0, radians(90), 0] ]]
                        #['axis - ' + str(lastcol) + ', 0',               'axis - ' + str(lastcol) + ', ' + str(cornerrow - (lastrow)%2 ), [0, radians(-90), 0]]]
         for item in range(len(magnet_data)):
             bpy.ops.object.select_all(action='DESELECT')
@@ -4617,7 +4617,7 @@ def main():
     bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
 
     #              [location,                                       direction,                                      rotation] 
-    magnet_data = [['axis - ' + str(lastcol) + ', 0',               'axis - ' + str(lastcol) + ', ' + str(cornerrow - (lastrow)%2 ), [0, radians(-90), 0]]]
+    magnet_data = [['axis - ' + str(ncols-1) + ', 0',               'axis - ' + str(ncols-1) + ', ' + str(nrows-2 - (nrows-1)%2 ), [0, radians(-90), 0]]]
     for item in range(len(magnet_data)):
         bpy.ops.object.select_all(action='DESELECT')
         bpy.ops.mesh.primitive_plane_add(enter_editmode=False, align='WORLD', location=((bpy.data.objects[magnet_data[item][0]].location[0]+bpy.data.objects[magnet_data[item][1]].location[0])/2, (bpy.data.objects[magnet_data[item][0]].location[1]+bpy.data.objects[magnet_data[item][1]].location[1])/2, 2), rotation=magnet_data[item][2], scale=(1, 1, 1))
@@ -4754,7 +4754,7 @@ def main():
         
         bpy.ops.object.select_all(action = 'DESELECT')
         for axis_obj in bpy.data.collections["AXIS"].objects:
-            if axis_obj.name == "thump_orgin":
+            if axis_obj.name == "thumb_orgin":
                 continue
             mat = axis_obj.matrix_world
             for i, (ox, oy) in enumerate(pcb_hole_offsets):
@@ -4767,7 +4767,7 @@ def main():
                 )
                 cyl = bpy.context.active_object
                 cyl.rotation_euler = axis_obj.rotation_euler
-                cyl.name = "pcb_mount_" + axis_obj.name.replace("axis", "") + "_" + str(i)
+                cyl.name = "pcb_mount" + axis_obj.name.replace("axis", "") + "_" + str(i)
                 bpy.data.collections["PCB_MOUNT_HOLES"].objects.link(cyl)
                 bpy.context.collection.objects.unlink(cyl)
 
