@@ -978,7 +978,7 @@ def main():
 
 
     ### Left
-    for row in range(lastrow):
+    for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.object.vertex_group_set_active(group='switch - 0, ' + str(row))
@@ -995,25 +995,15 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
     
-    for row in range(cornerrow):
+    for row in range(nrows-2):
         #Fill in between extended parts
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_' + str(ncols-2) + ', ' + 'finger_RIGHT']:
+        for vertex_group in ['finger_col_gap_0' + str(i) for i in range(ncols-1)] + ['finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
-        bpy.ops.mesh.edge_face_add()
-        bpy.ops.mesh.select_all(action='DESELECT')
-        
-        
-        
-    ### RIGHT
-    for row in range(lastrow):
-        #Isolate edge
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.object.vertex_group_set_active(group='switch - ' + str(lastcol) + ', ' + str(row))
-        bpy.ops.object.vertex_group_deselect()
+
         bpy.ops.object.vertex_group_set_active(group='finger_col_gap_' + str(ncols-2))
         bpy.ops.object.vertex_group_select()      
         bpy.ops.mesh.select_all(action='INVERT')
