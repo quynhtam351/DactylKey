@@ -330,7 +330,7 @@ def main():
                     
                 bpy.ops.object.select_all(action='DESELECT')
                 # CREATE referecnce location for placing thumb cluster
-                if (column == thumb_origin_col and row == thump_origin_row):
+                if (column == thumb_origin_col and row == thumb_origin_row):
                     bpy.ops.object.empty_add(type='CUBE', align='WORLD', location=(mount_height/2, -mount_width/2, 0), scale=(1, 1, 1))
                     bpy.context.active_object.name = "thumb_orgin"
                     bpy.data.collections['AXIS'].objects.link(bpy.data.objects["thumb_orgin"])
@@ -589,7 +589,8 @@ def main():
             for row in range(nrows):
                 if (column in stagger_cols) or (not row == lastrow):
                     
-                    face_is_a_key.append(row * 2 + column* 2*(2*nrows-1))            
+                    face_is_a_key.append(row * 2 + column* 2*(2*nrows-1))
+                    grid_mesh.faces.ensure_lookup_table() #lookup
                     grid_mesh.faces[face_is_a_key[-1]].select = True
                     
                     bpy.ops.object.vertex_group_assign_new()
@@ -600,6 +601,7 @@ def main():
                     
                     if finger_plate == "top":
                         bpy.ops.transform.resize(value=(mount_height*switch_size + 0.25, mount_width + 0.25, 1))
+                        grid_mesh.faces.ensure_lookup_table() #lookup
                                     
                         bpy.ops.transform.translate(value=-grid_mesh.faces[face_is_a_key[-1]].calc_center_median(), orient_type='GLOBAL')
                         bpy.ops.transform.translate(value=(0, 0, mount_thickness+key_well_offset), orient_type='GLOBAL')
@@ -611,7 +613,8 @@ def main():
                     
                     elif finger_plate == "bottom":
                         bpy.ops.transform.resize(value=((amoeba_size[0]*switch_size + 1) if (amoeba_size[0]*switch_size + 1) > (mount_height*switch_size + 0.25) else (mount_height*switch_size + 0.25), (amoeba_size[1] + 1) if (amoeba_size[1] + 1) > (mount_width + 0.25) else (mount_width + 0.25), 1))
-                            
+                        grid_mesh.faces.ensure_lookup_table() #lookup
+                        
                         bpy.ops.transform.translate(value=-grid_mesh.faces[face_is_a_key[-1]].calc_center_median(), orient_type='GLOBAL')
                         bpy.ops.transform.translate(value=(0, 0, key_well_offset+amoeba_position[2]), orient_type='GLOBAL')
 
@@ -624,23 +627,23 @@ def main():
                     bpy.ops.mesh.select_all(action='DESELECT')
                     
                     
-        for vertex_group_name in ['finger_col_gap_' + str(i) for i in range(lastcol)]:
+        for vertex_group_name in ['finger_col_gap_' + str(i) for i in range(ncols-1)]:
             bpy.ops.object.vertex_group_assign_new()
             bpy.data.objects["finger_plate_" + finger_plate].vertex_groups['Group'].name = vertex_group_name
         
-        for column in range(lastcol):
+        for column in range(ncols-1):
             for row in range(2*nrows-1):
                 grid_mesh.faces[(2*nrows-1)*(1+2*column)+row].select = True
                 bpy.ops.object.vertex_group_set_active(group='finger_col_gap_' + str(column))
             bpy.ops.object.vertex_group_assign()
             bpy.ops.mesh.select_all(action='DESELECT')
         
-        for vertex_group_name in ['finger_row_gap_' + str(i) for i in range(lastcol)]:
+        for vertex_group_name in ['finger_row_gap_' + str(i) for i in range(nrows-1)]:
             bpy.ops.object.vertex_group_assign_new()
             bpy.data.objects["finger_plate_" + finger_plate].vertex_groups['Group'].name = vertex_group_name
         
         
-        for row in range(lastrow):
+        for row in range(nrows-1):
             for column in range(2*ncols-1):
                 grid_mesh.faces[2*row+1 + column*(2*nrows-1)].select = True
                 bpy.ops.object.vertex_group_set_active(group='finger_row_gap_' + str(row))
@@ -727,7 +730,7 @@ def main():
             bpy.ops.mesh.select_all(action='DESELECT')
         
         # Correct/remvoe verticies in last row gap group
-        for vertex_group in ["finger_LEFT", "finger_RIGHT", "finger_col_gap_0", "finger_col_gap_' + str(ncols-2)"]:
+        for vertex_group in ["finger_LEFT", "finger_RIGHT", "finger_col_gap_0", "finger_col_gap_" + str(ncols-2)]:
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
@@ -916,7 +919,7 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
 
-    for column in range(lastcol):
+    for column in range(ncols-1):
         #Fill in between extended edges
         for vertex_group in ['finger_col_gap_' + str(column)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
@@ -953,7 +956,7 @@ def main():
         bpy.ops.object.vertex_group_assign()
         bpy.ops.mesh.select_all(action='DESELECT')
 
-    for column in range(lastcol):
+    for column in range(ncols-1):
         #Fill in between extended parts
         for vertex_group in ['finger_col_gap_' + str(column)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
