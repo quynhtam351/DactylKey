@@ -261,7 +261,7 @@ def main():
 
     for column in range(ncols):
         for row in range(nrows):
-            if (column in [2, 3, 4]) or (not row == lastrow):
+            if (column in [2, 3]) or (not row == lastrow):
                 
                 if column==ncols-1 and wide_pinky:
                     column_angle = beta * (centercol - column - 0.25)
@@ -553,7 +553,7 @@ def main():
                     
         for column in range(ncols):
             for row in range(nrows):
-                if (column in [2, 3, 4]) or (not row == lastrow):
+                if (column in [2, 3]) or (not row == lastrow):
                     
                     face_is_a_key.append(row * 2 + column* 2*(2*nrows-1))            
                     grid_mesh.faces[face_is_a_key[-1]].select = True
@@ -632,7 +632,7 @@ def main():
         for side in [['finger_TOP',          [0, nrows*(ncols-1)*4 + nrows*2]],
                      ['finger_LEFT',         [0, nrows*2-3]],
                      ['finger_RIGHT',        [nrows*(ncols-1)*4 + nrows*2, nrows*ncols*4-3]],
-                     ['finger_BOTTOM',       [nrows*(2*ncols+2)-1, nrows*ncols*4-3]],
+                     ['finger_BOTTOM',       [nrows*14-1, nrows*ncols*4-3]],
                      ['finger_corner_BL',    [nrows*2-3]],
                      ['finger_corner_TL',    [0]],
                      ['finger_corner_TR',    [nrows*(ncols-1)*4 + nrows*2]],
@@ -641,7 +641,7 @@ def main():
                      ['BRIDGE_MID',          [nrows*6-3, nrows*10-1]],
                      ['BRIDGE_RIGHT',        [nrows*10-1, nrows*12-1]],
                      ['BRIDGE_LEFT_RING_0',  [nrows*2-3]],
-                     ['BRIDGE_RIGHT_RING_0', [nrows*(2*ncols+2)-1]],
+                     ['BRIDGE_RIGHT_RING_0', [nrows*14-1]],
                      ['AMEOBA_CORRECT_R1',   [nrows*10-1]],
                      ['AMEOBA_CORRECT_R2',   [nrows*10-1]]]:
 
@@ -654,10 +654,11 @@ def main():
         
         # Create temporary vertex groups for adding faces
         for side in [['CORRECTION_1', [nrows*8 - 3,  nrows*10 - 2]],
-                     ['CORRECTION_2', [nrows*(2*ncols+4) - 2, nrows*(2*ncols+6) - 3]]]:
+                     ['CORRECTION_2', [nrows*16 - 2, nrows*18 - 3]]]:
 
             for vertex in side[1]:
                 grid_mesh.verts[vertex].select = True
+            bpy.ops.mesh.shortest_path_select(edge_mode='SELECT')
             bpy.ops.object.vertex_group_assign_new()
             bpy.data.objects["finger_plate_" + finger_plate].vertex_groups['Group'].name = side[0]
             bpy.ops.mesh.select_all(action='DESELECT')
@@ -676,7 +677,7 @@ def main():
         for side in ['CORRECTION_1', 'CORRECTION_2']:
             bpy.ops.object.vertex_group_set_active(group=side)
             bpy.ops.object.vertex_group_select()
-            bpy.ops.mesh.shortest_path_select(edge_mode='SELECT')
+            #bpy.ops.mesh.shortest_path_select(edge_mode='SELECT')
             bpy.ops.mesh.edge_face_add()
             bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
             bpy.ops.mesh.select_all(action='DESELECT')
@@ -691,8 +692,11 @@ def main():
             bpy.ops.object.vertex_group_assign()
             bpy.ops.mesh.select_all(action='DESELECT')
         
-        # Correct/remvoe verticies in last row gap group
-        for vertex_group in ["finger_LEFT", "finger_RIGHT", "finger_col_gap_0", "finger_col_gap_5"]:
+        # ĐÃ FIX: Tự động gom tất cả các khe hở từ cột 4 đến sát cột cuối để dọn dẹp
+        gap_groups_to_clean = ["finger_LEFT", "finger_RIGHT", "finger_col_gap_0"] + ["finger_col_gap_" + str(i) for i in range(4, ncols-1)]
+        
+        # Correct/remove verticies in last row gap group
+        for vertex_group in gap_groups_to_clean:
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
@@ -898,7 +902,7 @@ def main():
     for column in range(ncols):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        if column in [2, 3, 4]:
+        if column in [2, 3]:
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(column) + ', 4')
             bpy.ops.object.vertex_group_deselect()
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_3')
@@ -1138,7 +1142,7 @@ def main():
     for column in range(ncols):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        if column in [2, 3, 4]:
+        if column in [2, 3]:
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(column) + ', 4')
             bpy.ops.object.vertex_group_deselect()
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_3')
@@ -1313,14 +1317,14 @@ def main():
     
     
     
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-3) + ', ' + str(nrows-1))
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-4) + ', ' + str(nrows-1))
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='RAISE_1')
     bpy.ops.object.vertex_group_deselect()
     bpy.ops.object.vertex_group_assign_new()
     bpy.data.objects['finger_plate_top'].vertex_groups['Group'].name = 'TEMP'
     bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-3) + ', ' + str(nrows-1))
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-4) + ', ' + str(nrows-1))
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='TEMP')
     bpy.ops.object.vertex_group_deselect()
@@ -1330,7 +1334,7 @@ def main():
     bpy.ops.object.mode_set(mode = 'OBJECT')
     bpy.ops.object.modifier_add(type='SHRINKWRAP')
     bpy.context.object.modifiers["Shrinkwrap"].wrap_method = 'NEAREST_VERTEX'
-    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(ncols-3) + ', ' + str(nrows-1)]
+    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(ncols-4) + ', ' + str(nrows-1)]
     bpy.context.object.modifiers["Shrinkwrap"].vertex_group = "TEMP_CORNER_SQUARE"
     bpy.context.object.modifiers["Shrinkwrap"].offset = 0.01
     bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
@@ -1352,7 +1356,7 @@ def main():
     bpy.ops.object.mode_set(mode = 'OBJECT')
     bpy.ops.object.modifier_add(type='SHRINKWRAP')
     bpy.context.object.modifiers["Shrinkwrap"].wrap_mode = 'ON_SURFACE'
-    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(ncols-3) + ', ' + str(nrows-1)]
+    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(ncols-4) + ', ' + str(nrows-1)]
     bpy.context.object.modifiers["Shrinkwrap"].vertex_group = "TEMP_CORNER_SQUARE"
     bpy.context.object.modifiers["Shrinkwrap"].offset = 0.01
     bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
@@ -1411,7 +1415,7 @@ def main():
     '''
     
     '''
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-3) + ', 0')
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-4) + ', 0')
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='RAISE_1')
     bpy.ops.object.vertex_group_deselect()
@@ -1422,7 +1426,7 @@ def main():
     bpy.ops.object.vertex_group_set_active(group='TEMP_CORNER_SQUARE')
     bpy.ops.object.vertex_group_remove_from()
     bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-3) + ', 0')
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(ncols-4) + ', 0')
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='TEMP')
     bpy.ops.object.vertex_group_deselect()
@@ -1548,7 +1552,7 @@ def main():
     for column in range(ncols):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        if column in [2, 3, 4]:
+        if column in [2, 3]:
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(column) + ', 4')
             bpy.ops.object.vertex_group_deselect()
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_3')
@@ -3306,7 +3310,7 @@ def main():
                 bpy.ops.object.select_all(action='DESELECT')
                 bpy.context.view_layer.objects.active = bpy.data.objects[projection_type[1] + ' - ' + str(column) + ', 0']
                 for row in range(nrows):
-                    if (column in [2, 3, 4]) or (not row == lastrow):
+                    if (column in [2, 3]) or (not row == lastrow):
                         bpy.data.objects[projection_type[1] + ' - '  + str(column) + ', ' + str(row)].select_set(True)
                 bpy.ops.object.join()
                 bpy.ops.object.mode_set(mode = 'EDIT')
