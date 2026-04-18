@@ -91,7 +91,7 @@ def main():
         5: [0, -12,    5.64],
     }
     
-    wide_pinky     = True
+    wide_pinky     = False
     wide_pinky_col = ncols - 1
     
     
@@ -149,7 +149,6 @@ def main():
     relaxed_mesh = True
     switch_support = True
     loligagger_port = True
-    #wide_pinky = True
     lift_for_z_clearence = True       # Lifts the whole keyboard to prevent clipping for z<0 
     lift_for_z_clearence_finger_only = False
     lift_for_z_clearence_thumb_only = False
@@ -1003,6 +1002,17 @@ def main():
         for vertex_group in ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
+        bpy.ops.mesh.edge_face_add()
+        bpy.ops.mesh.select_all(action='DESELECT')
+        
+        
+        
+    ### RIGHT
+    for row in range(nrows-1):
+        #Isolate edge
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.object.vertex_group_set_active(group='switch - ' + str(nrows-1) + ', ' + str(row))
+        bpy.ops.object.vertex_group_deselect()
 
         bpy.ops.object.vertex_group_set_active(group='finger_col_gap_' + str(ncols-2))
         bpy.ops.object.vertex_group_select()      
@@ -3967,10 +3977,17 @@ def main():
         bpy.ops.object.vertex_group_set_active(group="bottom_non_manifold")
         bpy.ops.object.vertex_group_select()
         bpy.ops.mesh.delete(type='FACE')
-        bpy.ops.object.vertex_group_set_active(group="bottom_non_manifold")
-        bpy.ops.object.vertex_group_select()
-        bpy.ops.object.vertex_group_set_active(group="all")
-        bpy.ops.object.vertex_group_deselect()
+        # bpy.ops.object.vertex_group_set_active(group="bottom_non_manifold")
+        # bpy.ops.object.vertex_group_select()
+        # bpy.ops.object.vertex_group_set_active(group="all")
+        # bpy.ops.object.vertex_group_deselect()
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bm = bmesh.from_edit_mesh(bpy.context.object.data)
+        bm.verts.ensure_lookup_table()
+        min_z = min(v.co.z for v in bm.verts)
+        for v in bm.verts:
+            v.select = (v.co.z <= min_z + 1.0)
+        bmesh.update_edit_mesh(bpy.context.object.data)
 
         with suppress_stdout():
             bpy.ops.mesh.remove_doubles(threshold=0.2)
