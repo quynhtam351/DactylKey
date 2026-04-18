@@ -121,7 +121,7 @@ def main():
     relaxed_mesh = True
     switch_support = True
     loligagger_port = True
-    wide_pinky = True
+    wide_pinky = False
     lift_for_z_clearence = True       # Lifts the whole keyboard to prevent clipping for z<0 
     lift_for_z_clearence_finger_only = False
     lift_for_z_clearence_thumb_only = False
@@ -261,7 +261,7 @@ def main():
 
     for column in range(ncols):
         for row in range(nrows):
-            if (column in [2, 3]) or (not row == lastrow):
+            if (column in [2, 3, 4]) or (not row == lastrow):
                 
                 if column==ncols-1 and wide_pinky:
                     column_angle = beta * (centercol - column - 0.25)
@@ -898,7 +898,7 @@ def main():
     for column in range(ncols):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        if column in [2, 3]:
+        if column in [2, 3, 4]:
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(column) + ', 4')
             bpy.ops.object.vertex_group_deselect()
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_3')
@@ -1138,7 +1138,7 @@ def main():
     for column in range(ncols):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        if column in [2, 3]:
+        if column in [2, 3, 4]:
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(column) + ', 4')
             bpy.ops.object.vertex_group_deselect()
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_3')
@@ -1548,7 +1548,7 @@ def main():
     for column in range(ncols):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        if column in [2, 3]:
+        if column in [2, 3, 4]:
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(column) + ', 4')
             bpy.ops.object.vertex_group_deselect()
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_3')
@@ -3306,7 +3306,7 @@ def main():
                 bpy.ops.object.select_all(action='DESELECT')
                 bpy.context.view_layer.objects.active = bpy.data.objects[projection_type[1] + ' - ' + str(column) + ', 0']
                 for row in range(nrows):
-                    if (column in [2, 3]) or (not row == lastrow):
+                    if (column in [2, 3, 4]) or (not row == lastrow):
                         bpy.data.objects[projection_type[1] + ' - '  + str(column) + ', ' + str(row)].select_set(True)
                 bpy.ops.object.join()
                 bpy.ops.object.mode_set(mode = 'EDIT')
