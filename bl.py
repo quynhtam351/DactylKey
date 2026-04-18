@@ -670,7 +670,7 @@ def main():
         for side in [['finger_TOP',          [0, nrows*(ncols-1)*4 + nrows*2]],
                      ['finger_LEFT',         [0, nrows*2-3]],
                      ['finger_RIGHT',        [nrows*(ncols-1)*4 + nrows*2, nrows*ncols*4-3]],
-                     ['finger_BOTTOM',       [nrows*14-1, nrows*ncols*4-3]],
+                     ['finger_BOTTOM',       [nrows*(2*ncols+2)-1, nrows*ncols*4-3]],
                      ['finger_corner_BL',    [nrows*2-3]],
                      ['finger_corner_TL',    [0]],
                      ['finger_corner_TR',    [nrows*(ncols-1)*4 + nrows*2]],
@@ -679,7 +679,7 @@ def main():
                      ['BRIDGE_MID',          [nrows*6-3, nrows*10-1]],
                      ['BRIDGE_RIGHT',        [nrows*10-1, nrows*12-1]],
                      ['BRIDGE_LEFT_RING_0',  [nrows*2-3]],
-                     ['BRIDGE_RIGHT_RING_0', [nrows*14-1]],
+                     ['BRIDGE_RIGHT_RING_0', [nrows*(2*ncols+2)-1]],
                      ['AMEOBA_CORRECT_R1',   [nrows*10-1]],
                      ['AMEOBA_CORRECT_R2',   [nrows*10-1]]]:
 
@@ -692,7 +692,7 @@ def main():
         
         # Create temporary vertex groups for adding faces
         for side in [['CORRECTION_1', [nrows*8 - 3,  nrows*10 - 2]],
-                     ['CORRECTION_2', [nrows*16 - 2, nrows*18 - 3]]]:
+                     ['CORRECTION_2', [nrows*(2*ncols+4) - 2, nrows*(2*ncols+6) - 3]]]:
 
             for vertex in side[1]:
                 grid_mesh.verts[vertex].select = True
@@ -1021,7 +1021,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['finger_col_gap_' + str(i) in range(ncols-1)] + ['finger_LEFT']:
+        for vertex_group in ['finger_col_gap_' + str(i) for i in range(ncols-1)] + ['finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1139,7 +1139,7 @@ def main():
         
         #Extrude Border
 
-        if column <4:
+        if column <= stagger_cols[-1]:
             bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=(7 + (1-cos(alpha)/2)*column_offset(column)[1] - ( (1-sin(alpha)/2)*column_offset(column)[2])), angle=1.5708, follow_face=True, caches_valid=False, angle_presets='90°')
         else:
             bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=7, angle=1.5708, follow_face=True, caches_valid=False, angle_presets='90°')
@@ -1187,7 +1187,7 @@ def main():
 
         
         #Extrude Border
-        if column <4:
+        if column <= stagger_cols[-1]:
             bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=(7 - (1-cos(alpha)/2)*column_offset(column)[1] - ( (1-sin(alpha)/2)*column_offset(column)[2])), angle=1.5708, follow_face=True, caches_valid=False, angle_presets='90°')
         else:
             bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=7, angle=1.5708, follow_face=True, caches_valid=False, angle_presets='90°')
@@ -1479,7 +1479,7 @@ def main():
     bpy.context.object.modifiers["Shrinkwrap"].use_negative_direction = True
     bpy.context.object.modifiers["Shrinkwrap"].use_positive_direction = True
     bpy.context.object.modifiers["Shrinkwrap"].cull_face = 'OFF'
-    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(stagger_cols[-1]) + ', 0']
+    bpy.context.object.modifiers["Shrinkwrap"].target = bpy.data.objects["keycap_projection_outer - " + str(ncols-3) + ', 0']
     bpy.context.object.modifiers["Shrinkwrap"].vertex_group = "TEMP_CORNER_SQUARE"
     bpy.context.object.modifiers["Shrinkwrap"].offset = 0.5
     bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
@@ -1513,7 +1513,7 @@ def main():
         
         #Extrude Border
 
-        if column <4:
+        if column <= stagger_cols[-1]:
             bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=-7 + (1-sin(alpha)/2)*column_offset(column)[1] + (column_offset(column)[2]/2) , depth_mode='angle', angle=1.5708, follow_face=True, caches_valid=False, angle_presets='90°')
         else:
             bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=-7, depth_mode='angle', angle=1.5708, follow_face=True, caches_valid=False, angle_presets='90°')
@@ -1599,8 +1599,8 @@ def main():
 
         
         #Extrude Border
-        if column <4:
-            if column <2:
+        if column <= stagger_cols[-1]:
+            if column < stagger_cols[0]:
                 bpy.ops.mesh.offset_edges(geometry_mode='extrude', width=-7, angle=1.5708+alpha, follow_face=True, caches_valid=False)
                 if column == 1: bpy.ops.transform.resize(value=(0.5, 0.5, 0.5), orient_type='GLOBAL', orient_matrix=((1, 0, 0), (0, 1, 0), (0, 0, 1)), orient_matrix_type='GLOBAL', constraint_axis=(True, True, True), mirror=True, use_proportional_edit=False, proportional_edit_falloff='SMOOTH', proportional_size=1, use_proportional_connected=False, use_proportional_projected=False, snap=False, snap_elements={'INCREMENT'}, use_snap_project=False, snap_target='CLOSEST', use_snap_self=True, use_snap_edit=True, use_snap_nonedit=True, use_snap_selectable=False)
             else:
@@ -1631,7 +1631,7 @@ def main():
             bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', ' + str(cornerrow))
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
-        if column in range(stagger_cols[0] - 1, stagger_cols[-1] + 1:
+        if column in range(stagger_cols[0] - 1, stagger_cols[-1] + 1):
             bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
         bpy.ops.mesh.select_all(action='DESELECT')
     
@@ -1806,7 +1806,7 @@ def main():
     bpy.ops.mesh.remove_doubles(threshold=0.5)
     bpy.ops.mesh.select_all(action='DESELECT')
     bpy.ops.object.mode_set(mode = 'OBJECT')
-    
+    print("DEBUG finger_plate_top* objects:", sorted([o.name for o in bpy.data.objects if o.name.startwith("finger_plate_top")]))
     bpy.data.objects["finger_plate_top.001"].select_set(True)
     bpy.ops.object.join()
 
@@ -4775,7 +4775,7 @@ def main():
 
         if seperate_plate_from_body:
             bpy.context.view_layer.objects.active = bpy.data.objects["seperated_finger_plate"]
-            bpy.data.objects["seperated_finger_plate"].select_set(True)
+            bpy.data.objects['seperated_finger_plate'].select_set(True)
             bpy.ops.object.modifier_add(type='BOOLEAN')
             bpy.context.object.modifiers["Boolean"].operand_type = 'COLLECTION'
             bpy.context.object.modifiers["Boolean"].solver = 'MANIFOLD'
@@ -4783,7 +4783,7 @@ def main():
             bpy.ops.object.modifier_apply(modifier="Boolean")
 
         bpy.context.view_layer.objects.active = bpy.data.objects["body"]
-        bpy.data.objects["body"].select_set(True)
+        bpy.data.objects['body'].select_set(True)
         bpy.ops.object.modifier_add(type='BOOLEAN')
         bpy.context.object.modifiers["Boolean"].operand_type = 'COLLECTION'
         bpy.context.object.modifiers["Boolean"].solver = 'MANIFOLD'
