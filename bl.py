@@ -56,7 +56,7 @@ def main():
     ######################
 
     nrows = 5                       # key rows
-    ncols = 7                       # key columns
+    ncols = 6                       # key columns
 
     alpha = pi / 12.0               # curvature of the columns
     beta  = pi / 36.0               # curvature of the rows
@@ -964,7 +964,7 @@ def main():
         for vertex_group in ['finger_row_gap_0', 'finger_row_gap_1', 'finger_row_gap_2', 'finger_TOP']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
-        if column in [stagger_cols[0] - 1]:
+        if column in range(stagger_cols[0], stagger_cols[-1]):
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_' + str(lastrow - 1))
             bpy.ops.object.vertex_group_deselect()
         if column in [stagger_cols[0] - 1, stagger_cols[-1]]:
@@ -1203,7 +1203,7 @@ def main():
         for vertex_group in ['key_finger', 'finger_row_gap_0', 'finger_row_gap_1', 'finger_row_gap_2', 'finger_TOP']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
-        if column in [stagger_cols[0] - 1]:
+        if column in range(stagger_cols[0], stagger_cols[-1]):
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_' + str(lastrow - 1))
             bpy.ops.object.vertex_group_deselect()
         if column in [stagger_cols[0] - 1, stagger_cols[-1]]:
@@ -1341,7 +1341,7 @@ def main():
     
     
     
-    #bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', ' + str(lastrow))
+    bpy.ops.object.vertex_group_set_active(group='switch - ' + str(stagger_cols[-1]) + ', ' + str(lastrow))
     bpy.ops.object.vertex_group_select()
     bpy.ops.object.vertex_group_set_active(group='RAISE_1')
     bpy.ops.object.vertex_group_deselect()
@@ -1622,7 +1622,7 @@ def main():
         for vertex_group in ['key_finger', 'RAISE_0', 'finger_row_gap_0', 'finger_row_gap_1', 'finger_row_gap_2', 'finger_TOP']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
-        if column in [stagger_cols[0] - 1]:
+        if column in range(stagger_cols[0], stagger_cols[-1]):
             bpy.ops.object.vertex_group_set_active(group='finger_row_gap_'  + str(lastrow - 1))
             bpy.ops.object.vertex_group_deselect()
         if column in [stagger_cols[0] - 1, stagger_cols[-1]]:
@@ -1806,7 +1806,7 @@ def main():
     bpy.ops.mesh.remove_doubles(threshold=0.5)
     bpy.ops.mesh.select_all(action='DESELECT')
     bpy.ops.object.mode_set(mode = 'OBJECT')
-    print("DEBUG finger_plate_top* objects:", sorted([o.name for o in bpy.data.objects if o.name.startwith("finger_plate_top")]))
+    print("DEBUG finger_plate_top* objects:", sorted([o.name for o in bpy.data.objects if o.name.startswith("finger_plate_top")]))
     bpy.data.objects["finger_plate_top.001"].select_set(True)
     bpy.ops.object.join()
 
