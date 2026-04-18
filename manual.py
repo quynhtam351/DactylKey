@@ -56,7 +56,7 @@ def main():
     ######################
 
     nrows = 5                       # key rows
-    ncols = 6                       # key columns
+    ncols = 7                       # key columns
 
     alpha = pi / 12.0               # curvature of the columns
     beta  = pi / 36.0               # curvature of the rows
@@ -553,7 +553,7 @@ def main():
                     
         for column in range(ncols):
             for row in range(nrows):
-                if (column in [2, 3]) or (not row == lastrow):
+                if (column in [2, 3, 4]) or (not row == lastrow):
                     
                     face_is_a_key.append(row * 2 + column* 2*(2*nrows-1))            
                     grid_mesh.faces[face_is_a_key[-1]].select = True
@@ -589,7 +589,7 @@ def main():
                     
                     bpy.ops.mesh.select_all(action='DESELECT')
                     
-        for vertex_group_name in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3', 'finger_col_gap_4']:
+        for vertex_group_name in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3', 'finger_col_gap_4', 'finger_col_gap_5']:
             bpy.ops.object.vertex_group_assign_new()
             bpy.data.objects["finger_plate_" + finger_plate].vertex_groups['Group'].name = vertex_group_name
         
@@ -632,7 +632,7 @@ def main():
         for side in [['finger_TOP',          [0, nrows*(ncols-1)*4 + nrows*2]],
                      ['finger_LEFT',         [0, nrows*2-3]],
                      ['finger_RIGHT',        [nrows*(ncols-1)*4 + nrows*2, nrows*ncols*4-3]],
-                     ['finger_BOTTOM',       [nrows*14-1, nrows*ncols*4-3]],
+                     ['finger_BOTTOM',       [nrows*(2*ncols+2)-1, nrows*ncols*4-3]],
                      ['finger_corner_BL',    [nrows*2-3]],
                      ['finger_corner_TL',    [0]],
                      ['finger_corner_TR',    [nrows*(ncols-1)*4 + nrows*2]],
@@ -641,7 +641,7 @@ def main():
                      ['BRIDGE_MID',          [nrows*6-3, nrows*10-1]],
                      ['BRIDGE_RIGHT',        [nrows*10-1, nrows*12-1]],
                      ['BRIDGE_LEFT_RING_0',  [nrows*2-3]],
-                     ['BRIDGE_RIGHT_RING_0', [nrows*14-1]],
+                     ['BRIDGE_RIGHT_RING_0', [nrows*(2*ncols+2)-1]],
                      ['AMEOBA_CORRECT_R1',   [nrows*10-1]],
                      ['AMEOBA_CORRECT_R2',   [nrows*10-1]]]:
 
@@ -654,7 +654,7 @@ def main():
         
         # Create temporary vertex groups for adding faces
         for side in [['CORRECTION_1', [nrows*8 - 3,  nrows*10 - 2]],
-                     ['CORRECTION_2', [nrows*16 - 2, nrows*18 - 3]]]:
+                     ['CORRECTION_2', [nrows*(2*ncols+4) - 2, nrows*(2*ncols+6) - 3]]]:
 
             for vertex in side[1]:
                 grid_mesh.verts[vertex].select = True
@@ -692,7 +692,7 @@ def main():
             bpy.ops.mesh.select_all(action='DESELECT')
         
         # Correct/remvoe verticies in last row gap group
-        for vertex_group in ["finger_LEFT", "finger_RIGHT", "finger_col_gap_0", "finger_col_gap_4"]:
+        for vertex_group in ["finger_LEFT", "finger_RIGHT", "finger_col_gap_0", "finger_col_gap_5"]:
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
@@ -962,7 +962,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_RIGHT']:
+        for vertex_group in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_col_gap_5', 'finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -974,9 +974,9 @@ def main():
     for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.object.vertex_group_set_active(group='switch - 5, ' + str(row))
+        bpy.ops.object.vertex_group_set_active(group='switch - 6, ' + str(row))
         bpy.ops.object.vertex_group_deselect()
-        bpy.ops.object.vertex_group_set_active(group='finger_col_gap_4')
+        bpy.ops.object.vertex_group_set_active(group='finger_col_gap_5')
         bpy.ops.object.vertex_group_select()      
         bpy.ops.mesh.select_all(action='INVERT')
         
@@ -993,7 +993,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_LEFT']:
+        for vertex_group in ['finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_col_gap_5', 'finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1051,7 +1051,7 @@ def main():
     # Correct Left/Right
     bpy.ops.object.vertex_group_set_active(group="finger_col_gap_0")
     bpy.ops.object.vertex_group_select()
-    bpy.ops.object.vertex_group_set_active(group="finger_col_gap_4")
+    bpy.ops.object.vertex_group_set_active(group="finger_col_gap_5")
     bpy.ops.object.vertex_group_select()
     bpy.ops.mesh.select_more()
     bpy.ops.object.vertex_group_set_active(group="finger_corner_TR")
@@ -1218,7 +1218,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_RIGHT']:
+        for vertex_group in ['key_finger', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_col_gap_5', 'finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1230,9 +1230,9 @@ def main():
     for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.object.vertex_group_set_active(group='switch - 5, ' + str(row))
+        bpy.ops.object.vertex_group_set_active(group='switch - 6, ' + str(row))
         bpy.ops.object.vertex_group_deselect()
-        bpy.ops.object.vertex_group_set_active(group='finger_col_gap_4')
+        bpy.ops.object.vertex_group_set_active(group='finger_col_gap_5')
         bpy.ops.object.vertex_group_select()
         bpy.ops.object.vertex_group_set_active(group='key_finger')
         bpy.ops.object.vertex_group_select()
@@ -1257,7 +1257,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_LEFT']:
+        for vertex_group in ['key_finger', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_col_gap_5', 'finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1644,7 +1644,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'RAISE_0', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_RIGHT']:
+        for vertex_group in ['key_finger', 'RAISE_0', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_col_gap_5', 'finger_RIGHT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
@@ -1656,9 +1656,9 @@ def main():
     for row in range(nrows-1):
         #Isolate edge
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.object.vertex_group_set_active(group='switch - 5, ' + str(row))
+        bpy.ops.object.vertex_group_set_active(group='switch - 6, ' + str(row))
         bpy.ops.object.vertex_group_deselect()
-        bpy.ops.object.vertex_group_set_active(group='finger_col_gap_4')
+        bpy.ops.object.vertex_group_set_active(group='finger_col_gap_5')
         bpy.ops.object.vertex_group_select()
         bpy.ops.object.vertex_group_set_active(group='key_finger')
         bpy.ops.object.vertex_group_select()
@@ -1685,7 +1685,7 @@ def main():
         for vertex_group in ['finger_row_gap_' + str(row)]:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_select()
-        for vertex_group in ['key_finger', 'RAISE_0', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_LEFT']:
+        for vertex_group in ['key_finger', 'RAISE_0', 'finger_col_gap_0', 'finger_col_gap_1', 'finger_col_gap_2', 'finger_col_gap_3',  'finger_col_gap_4', 'finger_col_gap_5', 'finger_LEFT']:
             bpy.ops.object.vertex_group_set_active(group=vertex_group)
             bpy.ops.object.vertex_group_deselect()
         bpy.ops.mesh.edge_face_add()
